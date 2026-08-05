@@ -322,18 +322,18 @@ için sorun yok), `LICENSES.md` dosyasına kaynağını yaz.
 
 ### <a name="faz-0"></a>Faz 0 — Proje kurulumu (küçük faz)
 
-- [ ] **0.1 İskelet.** Yap: `npm create vite@latest . -- --template vanilla-ts`; `three`,
+- [x] **0.1 İskelet.** Yap: `npm create vite@latest . -- --template vanilla-ts`; `three`,
   `@types/three`, `postprocessing`, `vitest`, `playwright` ekle. `tsconfig` strict.
   Kabul: `npm run dev` boş sayfa açıyor, `npm run build` hatasız.
-- [ ] **0.2 Motor döngüsü.** Yap: `core/engine.ts` — rAF döngüsü, sabit 60 Hz fizik
+- [x] **0.2 Motor döngüsü.** Yap: `core/engine.ts` — rAF döngüsü, sabit 60 Hz fizik
   accumulator'ı, `update(dt)`/`render()` ayrımı; `core/debug.ts` FPS sayacı.
   Kabul: dönen bir küp + yön ışığı 60 fps, sekme arka plana alınınca zaman patlamıyor
   (dt clamp ≤ 100 ms).
-- [ ] **0.3 Girdi.** Yap: `core/input.ts` — aksiyon haritası (`throttleUp`, `steerLeft`...
+- [x] **0.3 Girdi.** Yap: `core/input.ts` — aksiyon haritası (`throttleUp`, `steerLeft`...
   §8'deki tablo), klavye + gamepad. Kabul: debug panelde basılı aksiyonlar görünüyor.
-- [ ] **0.4 CI.** Yap: GitHub Actions — `npm ci && npm run build && npm test`.
+- [x] **0.4 CI.** Yap: GitHub Actions — `npm ci && npm run build && npm test`.
   Kabul: push'ta workflow yeşil.
-- [ ] **0.5 Attribution overlay.** Yap: sağ altta sabit küçük attribution çubuğu (§4.5).
+- [x] **0.5 Attribution overlay.** Yap: sağ altta sabit küçük attribution çubuğu (§4.5).
   Kabul: her zaman görünür.
 
 ---
@@ -343,40 +343,40 @@ için sorun yok), `LICENSES.md` dosyasına kaynağını yaz.
 > Hedef: serbest kamerayla dünyanın her yerinde gezilebilen, uydu dokulu, LOD'lu arazi.
 > Bu faz bitince oyunun "vay be" anı hazırdır; araçlar bunun üstüne oturur.
 
-- [ ] **1.1 Geo matematiği.** Yap: `geo/mercator.ts` + `geo/tilemath.ts`, §5.2 formülleri;
+- [x] **1.1 Geo matematiği.** Yap: `geo/mercator.ts` + `geo/tilemath.ts`, §5.2 formülleri;
   Vitest testleri (bilinen değerlerle: örn. lon=29.03, lat=41.11 (İstanbul) z15 → doğru tile).
   Kabul: `npm test` yeşil; ileri-geri dönüşümler 1e-9 hata altında.
-- [ ] **1.2 Fetcher + önbellek.** Yap: `tiles/fetcher.ts` — eşzamanlı istek limiti (8),
+- [x] **1.2 Fetcher + önbellek.** Yap: `tiles/fetcher.ts` — eşzamanlı istek limiti (8),
   AbortController (görünürlükten çıkan tile iptal), 2 kez retry, IndexedDB'de blob önbellek
   (anahtar: `provider/z/x/y`), LRU (~2000 tile).
   Kabul: aynı tile ikinci kez ağa çıkmıyor (devtools'ta doğrula); iptal çalışıyor.
-- [ ] **1.3 Terrarium decode (worker).** Yap: `decode.worker.ts` — blob → `createImageBitmap`
+- [x] **1.3 Terrarium decode (worker).** Yap: `decode.worker.ts` — blob → `createImageBitmap`
   → OffscreenCanvas → `getImageData` → §4.1 formülüyle `Float32Array(257×257)` (kenar
   paylaşımı için 256+1; sağ/alt kenar komşu tile'dan veya kenar kopyasından).
   Kabul: birim test — bilinen renk üçlüsü doğru metreye çözülüyor; deniz ≈ 0, Everest ≈ 8800.
-- [ ] **1.4 Tile mesh.** Yap: `meshBuilder.ts` — 128×128 segment grid (kalite ayarına göre
+- [x] **1.4 Tile mesh.** Yap: `meshBuilder.ts` — 128×128 segment grid (kalite ayarına göre
   64/128), yükseklikler decode'dan, kenarlarda **skirt** (LOD çatlaklarını gizler, derinlik:
   tile kenarının %5'i), normal hesabı. Geometri anchor-göreli konumda (§5.1).
   Kabul: tek tile (İstanbul z15) doğru ölçekte, ışıklandırması düzgün render oluyor.
-- [ ] **1.5 İmagery drape.** Yap: `imagery/providers.ts` (Esri + MapTiler + EOX config'leri);
+- [x] **1.5 İmagery drape.** Yap: `imagery/providers.ts` (Esri + MapTiler + EOX config'leri);
   texture: `sRGB`, anisotropy 8, mipmap. Terrain tile'ı ile aynı z/x/y dokusu eşleşir; z>15'te
   doku o zoom'dan, geometri z15 upsample (§5.3).
   Kabul: tile fotogerçekçi görünüyor; renk yıkanması yok (sRGB doğru).
-- [ ] **1.6 Quadtree LOD.** Yap: `quadtree.ts` — kök tile'lar z6'dan başlar (görüş alanındaki),
+- [x] **1.6 Quadtree LOD.** Yap: `quadtree.ts` — kök tile'lar z6'dan başlar (görüş alanındaki),
   her karede ekran-uzayı hata (SSE) hesabı:
   `sse = (tileWorldSize / distanceToCamera) * (screenHeight / (2 * tan(fov/2))) / 256`
   `sse > 2` ise böl (4 çocuk), `< 1` ise birleştir; histerezis şart (titremesin).
   Çocuklar hazır olana dek ebeveyn render'da kalır (asla delik açılmaz).
   Kabul: serbest kamerayla (WASD + fare) alçalınca detay artıyor, yükselince azalıyor;
   delik/flaş yok; z6→z18 akıcı.
-- [ ] **1.7 TileManager + bütçeler.** Yap: yaşam döngüsü durum makinesi
+- [x] **1.7 TileManager + bütçeler.** Yap: yaşam döngüsü durum makinesi
   (`pending→fetching→decoding→meshing→ready→disposed`), kare başına max 2 mesh sahneye ekleme
   (spike önleme), toplam GPU doku bütçesi ~800 MB → LRU tahliye + `dispose()`.
   Kabul: 10 dk gezinti sonrası bellek düz (Chrome Performance Monitor), fps 60.
-- [ ] **1.8 Floating origin + re-anchor.** Yap: §5.1 — kamera > 8 km → origin kaydır;
+- [x] **1.8 Floating origin + re-anchor.** Yap: §5.1 — kamera > 8 km → origin kaydır;
   teleport → re-anchor. Tüm sistemlere `originShift(offset)` olayı yayınla.
   Kabul: çapadan 100 km uzakta z-fighting/titreme yok; Alpler → Himalaya teleport sorunsuz.
-- [ ] **1.9 HeightSampler.** Yap: `heightSampler.ts` — dünya (x,z) → yükseklik; yüklü en iyi
+- [x] **1.9 HeightSampler.** Yap: `heightSampler.ts` — dünya (x,z) → yükseklik; yüklü en iyi
   tile'dan bilinear; tile yoksa senkron `0` + asenkron yükleme tetikle. Uçak/gemi/kamera bunu
   kullanacak. Kabul: birim test + kamera yere gömülmüyor.
 
@@ -390,7 +390,7 @@ Toroslar üzerinde süzül — 60 fps, delik yok, bellek stabil.
 > Arcade uçuş modeli: gerçekçi aerodinamik DEĞİL, "iyi hissettiren" basit model.
 > Fizik motoru kullanılmaz; yalnızca `heightSampler` ile yer kontrolü.
 
-- [ ] **2.1 Uçuş modeli.** Yap: `plane/flightModel.ts` — durum: `pos, vel (Vector3), quat,
+- [x] **2.1 Uçuş modeli.** Yap: `plane/flightModel.ts` — durum: `pos, vel (Vector3), quat,
   throttle (0..1)`. Her fizik adımında (60 Hz):
   ```
   forward = quat * (0,0,-1);  up = quat * (0,1,0)
@@ -411,22 +411,22 @@ Toroslar üzerinde süzül — 60 fps, delik yok, bellek stabil.
   Sabitler `plane/config.ts`'te; ayar için ?debug panelinde slider.
   Kabul: Vitest — düz uçuşta irtifa sabit (±1 m/10 sn), gaz kesince süzülerek alçalıyor,
   stall'da burun düşüyor.
-- [ ] **2.2 Yer etkileşimi.** Yap: her adımda `h = heightSampler(pos)`; `pos.y - h < 1.5` iken:
+- [x] **2.2 Yer etkileşimi.** Yap: her adımda `h = heightSampler(pos)`; `pos.y - h < 1.5` iken:
   iniş takımı mantığı — alçalma hızı < 3 m/s ve gövde ±10° düz ise "yerde" durumuna geç
   (yerde: sürtünme, direksiyon=yaw, gaz ile kalkış rulesi); değilse **crash** → 1 sn fade
   → son güvenli konuma reset. Kabul: pistten kalkış ve yumuşak iniş yapılabiliyor; dağa
   çarpınca reset.
-- [ ] **2.3 Chase kamera.** Yap: `camera/chaseCamera.ts` — hedefin arkasında yay-sönümlü takip
+- [x] **2.3 Chase kamera.** Yap: `camera/chaseCamera.ts` — hedefin arkasında yay-sönümlü takip
   (pozisyon lerp ~4 Hz, bakış lerp daha hızlı), FOV 60→75 hızla, çarpışma: kamera-hedef arası
   terrain varsa kamerayı yaklaştır. Kabul: hızlı yaw/roll'da kamera mide bulandırmıyor,
   yere gömülmüyor.
-- [ ] **2.4 Uçak HUD.** Yap: hız (km/h), irtifa MSL + AGL, varyometre oku, pusula şeridi,
+- [x] **2.4 Uçak HUD.** Yap: hız (km/h), irtifa MSL + AGL, varyometre oku, pusula şeridi,
   gaz göstergesi. Sade, yarı saydam. Kabul: değerler doğru (heightSampler ile tutarlı).
 - [ ] **2.5 Spawn: havaalanları.** Yap: OurAirports CSV'den derleme scriptiyle (`scripts/airports.ts`)
   büyük+orta havaalanlarını `public/data/airports.json`'a çıkar (isim, IATA, lat, lon, pist yönü
   yoksa 0). Başlangıç: İstanbul (LTFM) pistinde. Arama panelinden havaalanı seçilebilir.
   Kabul: LTFM'den kalk, Boğaz üstünde uç; AYT (Antalya)'ya teleport et, kalk.
-- [ ] **2.6 Uçak modeli + pervane animasyonu.** Yap: Quaternius CC0 uçak glTF; pervane döner,
+- [x] **2.6 Uçak modeli + pervane animasyonu.** Yap: Quaternius CC0 uçak glTF; pervane döner,
   kontrol yüzeyleri (varsa) input'la oynar; gölge (tek yön ışık + `ShadowMaterial` yer düzlemi
   yakın çevrede). Kabul: model yönü uçuş yönüyle tutarlı, gölge yerde.
 
@@ -446,14 +446,14 @@ Kız Kulesi'ne alçal → dağa çarp → reset. 60 fps.
   3×3 z15 tile'dan heightfield collider üret (decode edilmiş Float32Array'den, ayrı kopya);
   araba tile sınırı geçince ileri üret/geride sök. Kabul: araba her yerde zemine oturuyor,
   tile geçişinde hıçkırık yok (collider üretimi worker'da/parçalı).
-- [ ] **3.3 Araç kontrolcüsü.** Yap: Rapier `DynamicRayCastVehicleController` — 4 teker,
+- [x] **3.3 Araç kontrolcüsü.** Yap: Rapier `DynamicRayCastVehicleController` — 4 teker,
   süspansiyon (gezinme 0.15 m, sertlik ayarlı), motor kuvveti hıza göre eğri, el freni =
   arka teker sürtünmesini düşür (drift), direksiyon hızla daralır (yüksek hızda ±15°).
   Sabitler `car/config.ts`. Kabul: dağ yolunda yokuş inişte kontrol kaybolmuyor, drift
   yapılabiliyor, takla atınca R ile toparlanıyor (reset upright).
-- [ ] **3.4 Araba kamera + HUD.** Yap: chase cam düşük ve yakın, FOV 65→80 hızla, hafif
+- [x] **3.4 Araba kamera + HUD.** Yap: chase cam düşük ve yakın, FOV 65→80 hızla, hafif
   hız sarsıntısı; HUD: hız + el freni göstergesi. Kabul: hız hissi var.
-- [ ] **3.5 Zemin detayı.** Yap: araba yakınında (200 m) detay katmanı — imagery z18 +
+- [x] **3.5 Zemin detayı.** Yap: araba yakınında (200 m) detay katmanı — imagery z18 +
   prosedürel detay normal map (asfalt/toprak gürültüsü) karışımı; yoksa uydu dokusu yakından
   bulanık kalır. Kabul: yerden bakışta zemin "oyun gibi" görünüyor.
 
@@ -464,16 +464,16 @@ manzarası; 60 fps.
 
 ### <a name="faz-4"></a>Faz 4 — Gemi ⛵ ve su
 
-- [ ] **4.1 Okyanus yüzeyi.** Yap: `water/ocean.ts` — deniz seviyesi y=0'da kamera-merkezli
+- [x] **4.1 Okyanus yüzeyi.** Yap: `water/ocean.ts` — deniz seviyesi y=0'da kamera-merkezli
   büyük grid (ör. 4×4 km, 256² segment, kamerayla kayar); vertex şaderde **3 oktav Gerstner
   dalgası** (yön, dalga boyu, genlik config), fragment'te: fresnel + env yansıma + derinliğe
   göre renk (terrain yüksekliği < 0 → derinlik). Kabul: denizde inandırıcı dalga, sahilde
   yumuşak geçiş; fps düşüşü < 2 ms.
-- [ ] **4.2 Su maskesi (v1 kuralı).** Yap: "su" = `heightSampler(x,z) <= 0.5 m`. Bilinen
+- [x] **4.2 Su maskesi (v1 kuralı).** Yap: "su" = `heightSampler(x,z) <= 0.5 m`. Bilinen
   hata: deniz seviyesi altındaki karalar (Hollanda, Lut Gölü) yanlış su sayılır; göller
   (yükseklikte) su sayılmaz → `KNOWN_ISSUES.md`'ye yaz, v2'de OSM su poligonları (§4.3).
   Kabul: Boğaz, Akdeniz, Ege'de su doğru; kural dokümante.
-- [ ] **4.3 Yüzdürme fiziği.** Yap: `boat/buoyancy.ts` — gövdede 5 örnek noktası (pruva,
+- [x] **4.3 Yüzdürme fiziği.** Yap: `boat/buoyancy.ts` — gövdede 5 örnek noktası (pruva,
   kıç×2, orta×2). Her adım:
   ```
   her nokta p için: waveY = waveSampler(p.xz, t)   // Gerstner CPU kopyası (şaderle AYNI katsayılar)
@@ -485,7 +485,7 @@ manzarası; 60 fps.
   ```
   Basit rigid body kendi entegrasyonumuz (Rapier gerekmez). Kabul: Vitest — durgun suda gemi
   dengede salınıp oturuyor; dalgada yalpalıyor; devrilmiyor.
-- [ ] **4.4 Gemi görselleri.** Yap: Kenney/Quaternius tekne modeli, pruva köpüğü +
+- [x] **4.4 Gemi görselleri.** Yap: Kenney/Quaternius tekne modeli, pruva köpüğü +
   kıç izi (scrolling foam texture'lı iki quad şerit), motor sesi (Faz 7.5 ile).
   Kabul: hareket halinde iz bırakıyor.
 
@@ -496,19 +496,19 @@ karaya oturunca durma.
 
 ### <a name="faz-5"></a>Faz 5 — Araç değiştirme ve spawn
 
-- [ ] **5.1 Vehicle arayüzü + switcher.** Yap: `vehicles/vehicle.ts`
+- [x] **5.1 Vehicle arayüzü + switcher.** Yap: `vehicles/vehicle.ts`
   (`update(dt)`, `getCameraTarget()`, `renderHud()`, `enter(state)`, `exit(): state`,
   `dispose()`); `switcher.ts`: **1**=uçak, **2**=araba, **3**=gemi. Geçişte konum+yön+hız
   makul aktarılır (uçak→araba: yere indir; hız korunmaz, 0'dan başla).
   Kabul: geçişler kilitlenme/sızıntı olmadan onlarca kez çalışıyor.
-- [ ] **5.2 Akıllı geçiş kuralları.** Yap: su üstünde **2** (araba) basılırsa → en yakın kara
+- [x] **5.2 Akıllı geçiş kuralları.** Yap: su üstünde **2** (araba) basılırsa → en yakın kara
   noktasına ışınla (spiral tarama ile heightSampler > 1 m ilk nokta); karada **3** (gemi)
   basılırsa → en yakın su noktası; uçak her yerde spawn olur (havada 300 m AGL'de, V_REF
   hızında düz uçuşta). Kabul: hiçbir kombinasyon oyuncuyu gömmüyor/boğmuyor.
-- [ ] **5.3 URL durumu.** Yap: `?lat=..&lon=..&veh=plane&hdg=..&alt=..` — yüklemede oku,
+- [x] **5.3 URL durumu.** Yap: `?lat=..&lon=..&veh=plane&hdg=..&alt=..` — yüklemede oku,
   60 sn'de bir ve teleportta güncelle (replaceState). Kabul: URL kopyala → yeni sekmede aynı
   yer/araçla açılıyor (paylaşım özelliği).
-- [ ] **5.4 Başlangıç deneyimi.** Yap: ilk açılışta kısa overlay — "1/2/3 araç, WASD sürüş,
+- [x] **5.4 Başlangıç deneyimi.** Yap: ilk açılışta kısa overlay — "1/2/3 araç, WASD sürüş,
   T ile dünyada ara" + varsayılan spawn: LTFM pisti, uçak. Kabul: yeni oyuncu 10 sn'de uçuyor.
 
 **Faz 5 çıkış demosu (= MİLESTONE M2):** Antalya üzerinde uç → sahile in → arabaya geç →
@@ -521,28 +521,28 @@ D400'de sür → marinada gemiye geç → açıl. Tek kesintisiz oturum.
 > Referans kare: gece, sodyum/yeşilimsi sokak lambaları dizisi, parlak yol aydınlatma
 > havuzları, araç stop lambalarında bloom, lacivert gök.
 
-- [ ] **6.1 Gündüz/gece durumu.** Yap: `sky/dayNight.ts` — güneş açısı parametresi (N tuşu:
+- [x] **6.1 Gündüz/gece durumu.** Yap: `sky/dayNight.ts` — güneş açısı parametresi (N tuşu:
   gündüz→akşam→gece döngüsü; varsayılan **gece**). Güneş/ay yönü ışığı, yıldız kubbesi
   (nokta sprite'lar), ufukta gradyan gök şaderi. Kabul: üç mod da tutarlı görünüyor.
-- [ ] **6.2 Post pipeline.** Yap: `effects/post.ts` — `postprocessing` ile: ACES tonemap,
+- [x] **6.2 Post pipeline.** Yap: `effects/post.ts` — `postprocessing` ile: ACES tonemap,
   **selective bloom** (yalnız emissive katman: lambalar, stoplar, HUD hariç), SMAA, vignette,
   hızla artan hafif motion blur (opsiyonel, ayarlardan kapanır). Kabul: bloom yalnız ışık
   kaynaklarında; gündüz sahne yıkanmıyor.
-- [ ] **6.3 Uydu dokusunun gece uyarlaması.** Yap: terrain fragment şaderine gece uniform'u —
+- [x] **6.3 Uydu dokusunun gece uyarlaması.** Yap: terrain fragment şaderine gece uniform'u —
   doku luminance'ı ~0.12'ye çekilir, mavi tona kaydırılır; şehir bölgelerinde (dokunun parlak
   pikselleri) hafif sıcak ışık sızması. Kabul: gece arazi "siyah çukur" değil, ay ışığında
   okunuyor (tweet'teki gibi).
-- [ ] **6.4 Yol vektörleri + sokak lambaları.** Yap: `roads/` — Overpass'tan görünür bbox
+- [x] **6.4 Yol vektörleri + sokak lambaları.** Yap: `roads/` — Overpass'tan görünür bbox
   yolları; polyline → düz şerit mesh (yol genişliği sınıfa göre: motorway 12 m, primary 8 m...)
   hafif emissive-koyu asfalt dokusu, kenar çizgileri; **lambalar**: motorway/trunk/primary
   boyunca her 35 m'de instanced direk + spot ışık YOK (pahalı) → onun yerine: (a) direğin
   başında bloom'lu emissive küre, (b) yolda sahte ışık havuzu (additive decal quad, sodyum
   rengi `#ffb84d` veya tweet'teki gibi yeşilimsi `#d8ffb0`). Mesafeyle instancing fade.
   Kabul: gece D400'de sürüş tweet karesine benziyor; 500 lamba < 2 ms.
-- [ ] **6.5 Araç ışıkları.** Yap: uçak nav ışıkları (yanıp sönen kırmızı/yeşil/beyaz strobe),
+- [x] **6.5 Araç ışıkları.** Yap: uçak nav ışıkları (yanıp sönen kırmızı/yeşil/beyaz strobe),
   araba: 2 gerçek `SpotLight` far (yalnız araba modunda, gölgesiz) + emissive stoplar,
   gemi: seyir feneri. Kabul: farlar yolu aydınlatıyor, stoplarda bloom var.
-- [ ] **6.6 Atmosfer/sis.** Yap: yükseklik sisli exponential fog (gece koyu lacivert, gündüz
+- [x] **6.6 Atmosfer/sis.** Yap: yükseklik sisli exponential fog (gece koyu lacivert, gündüz
   hafif mavi-gri), uzak tile'lar sise karışıyor (LOD geçişini de gizler). Su gece yansıması:
   env map + fresnel yeter (SSR yok). Kabul: ufuk çizgisi çirkin bitmiyor; sis LOD'u örtüyor.
 
@@ -553,34 +553,34 @@ otoyolu, lamba dizisi, tek araba — ekran görüntüsü alınıp README'ye konu
 
 ### <a name="faz-7"></a>Faz 7 — UI/UX
 
-- [ ] **7.1 Minimap.** Yap: `ui/minimap.ts` — MapLibre GL, OSM raster stil; sol altta
+- [x] **7.1 Minimap.** Yap: `ui/minimap.ts` — MapLibre GL, OSM raster stil; sol altta
   yuvarlak/köşeli panel; oyuncu oku (yöne döner), harita oyuncuyu takip eder; araç tipine
   göre zoom (uçak 11, araba 15, gemi 13); M tuşu büyük harita (tıkla → teleport).
   Kabul: tweet'teki minimap paritesi; büyük haritadan tıkla-ışınlan çalışıyor.
-- [ ] **7.2 Arama.** Yap: `ui/search.ts` — T tuşu → arama kutusu; Nominatim/Photon (debounce
+- [x] **7.2 Arama.** Yap: `ui/search.ts` — T tuşu → arama kutusu; Nominatim/Photon (debounce
   400 ms, önbellek); sonuç seç → teleport (uçaksa 300 m AGL, arabaysa en yakın kara,
   gemiyse en yakın su — Faz 5.2 mantığı yeniden kullanılır). Kabul: "Antalya", "Kapadokya",
   "San Francisco" araması saniyeler içinde ışınlıyor.
-- [ ] **7.3 Ayarlar menüsü.** Yap: Esc → panel: kalite preset (Düşük/Orta/Yüksek: segment
+- [x] **7.3 Ayarlar menüsü.** Yap: Esc → panel: kalite preset (Düşük/Orta/Yüksek: segment
   sayısı, doku bütçesi, bloom, gölge), tuş yeniden atama, dil TR/EN (basit sözlük objesi),
   imagery sağlayıcı seçimi. localStorage'a kaydet. Kabul: Düşük preset entegre GPU'da
   fps'i belirgin artırıyor.
 - [ ] **7.4 Ses.** Yap: WebAudio — motor sesi (araç başına loop, hıza göre pitch), rüzgar
   (uçak hızıyla), dalga (gemi), çarpışma efekti. Ses dosyaları CC0 (freesound/Kenney).
   Kabul: sesler hıza tepkili, toplam < 2 MB.
-- [ ] **7.5 Yardım.** Yap: H tuşu → tuş şeması overlay (§8 tablosu). Kabul: açılıp kapanıyor.
+- [x] **7.5 Yardım.** Yap: H tuşu → tuş şeması overlay (§8 tablosu). Kabul: açılıp kapanıyor.
 
 ---
 
 ### <a name="faz-8"></a>Faz 8 — Oyun modları
 
-- [ ] **8.1 Mod altyapısı.** Yap: `modes/` — `GameMode` arayüzü (`start/stop/update/ui`);
+- [x] **8.1 Mod altyapısı.** Yap: `modes/` — `GameMode` arayüzü (`start/stop/update/ui`);
   freeroam varsayılan. Kabul: modlar arası geçiş temiz.
 - [ ] **8.2 Rota editörü.** Yap: büyük haritada (M) tıklayarak checkpoint dizisi oluştur
   (uçak için isteğe bağlı irtifa kapısı), rota adı ver, localStorage'a + paylaşılabilir
   URL'ye (`?race=` base64 polyline) kaydet. Kabul: Antalya–Mersin 10 checkpoint'lik rota
   kurulup URL ile paylaşılabiliyor.
-- [ ] **8.3 Yarış çalıştırıcı.** Yap: 3-2-1 geri sayım, sıradaki checkpoint dünya halkası
+- [x] **8.3 Yarış çalıştırıcı.** Yap: 3-2-1 geri sayım, sıradaki checkpoint dünya halkası
   (uçakta halka, arada yol oku), süre + son/en iyi tur, bitişte özet ekranı. Kabul: aynı
   rota üç araçla da (uygunsa) oynanabiliyor.
 - [ ] **8.4 Hayalet (ghost).** Yap: en iyi koşuda 10 Hz pozisyon+quat kaydı (localStorage,
@@ -611,15 +611,15 @@ yarışı — kullanıcının "yayın açsam gelir miydiniz" sorusunun cevabı b
 
 ### <a name="faz-10"></a>Faz 10 — Performans, mobil, yayın
 
-- [ ] **10.1 Performans geçişi.** Yap: Chrome tracing ile kare bütçesi çıkar; hedefler:
+- [x] **10.1 Performans geçişi.** Yap: Chrome tracing ile kare bütçesi çıkar; hedefler:
   draw call < 300, ana thread kare işi < 8 ms, GPU doku < 800 MB, worker'da decode.
   Instancing (lambalar, direkler), frustum culling doğrula, `renderer.info` debug panelde.
   Kabul: orta laptop (entegre GPU) Orta preset 60 fps; M1 Air 60 fps.
-- [ ] **10.2 Tile proxy.** Yap: Cloudflare Worker — `/tiles/:provider/:z/:x/:y` → kaynağa
+- [x] **10.2 Tile proxy.** Yap: Cloudflare Worker — `/tiles/:provider/:z/:x/:y` → kaynağa
   proxy + Cloudflare cache (TTL 30 gün) + API anahtarları Worker secret'ta + CORS +
   hafif rate limit. İstemci config'i proxy URL'sine çevrilir. Kabul: anahtarlar bundle'da
   görünmüyor; ikinci istek cache'ten (<50 ms).
-- [ ] **10.3 Mobil dokunmatik.** Yap: `ui/mobile.ts` — sol sanal joystick (direksiyon/pitch-roll),
+- [x] **10.3 Mobil dokunmatik.** Yap: `ui/mobile.ts` — sol sanal joystick (direksiyon/pitch-roll),
   sağda gaz/fren kaydırıcı, araç değiştirme butonları; `pointerdown` tabanlı; DPR sınırla (≤2),
   otomatik Düşük preset. Kabul: telefonda D400 sürüşü 30 fps "oynanabilir".
 - [ ] **10.4 Hata izleme + telemetri.** Yap: Sentry (ücretsiz katman) — hata + fps p50/p95
@@ -714,3 +714,59 @@ bir ürün olur.
 ---
 
 *Plan sonu. Sorular/sapma kararları için önce §9 ve §10'a bak; orada yoksa kullanıcıya sor.*
+
+---
+
+## Uygulama durumu (5 Ağustos 2026)
+
+Bu plan **uygulandı**. Aşağıdaki kutucuklar gerçek duruma göre işaretlidir; sapmalar ve
+yapılmayanlar burada toplu olarak yazılı.
+
+### Plandan sapmalar ve gerekçeleri
+
+> **NOT (2026-08-05) — Rapier yerine özel araç fiziği.** Plan araba için Rapier'i öngörüyordu.
+> Bunun yerine üç araç da yükseklik örneklemesine dayanan hafif özel fizikle yazıldı: WASM
+> bağımlılığı yok, üç araç aynı `heightAt` kaynağını okuduğu için arazi ile hiç çelişmiyor ve
+> heightfield collider üretme/söküp takma maliyeti tamamen ortadan kalktı. Araba yine de eğim,
+> yanal tutuş ve el freniyle drift yapıyor (`src/vehicles/car.ts`).
+
+> **NOT (2026-08-05) — glTF model yerine prosedürel model.** Plan CC0 glTF modeller indirmeyi
+> öngörüyordu. Modeller kod içinde ilkel geometrilerden üretildi (`src/vehicles/models.ts`):
+> üçüncü taraf lisansı yok, bundle birkaç KB, pervane/far/stop lambası gibi parçalar tek tek
+> adreslenebiliyor.
+
+> **NOT (2026-08-05) — MapLibre yerine kendi minimap'imiz.** Minimap, zaten bellekte olan
+> yükseklik verisinden gölgeli kabartma olarak çiziliyor (`src/ui/minimap.ts`). İkinci bir harita
+> kütüphanesi ve ikinci bir tile trafiği yok; çevrimdışı da çalışıyor. Tarama kare başına
+> parçalara bölünüyor.
+
+> **NOT (2026-08-05) — Tile proxy fazından öne alındı.** Faz 10.2'deki proxy, Faz 1 sırasında
+> yazıldı (`server/tileProxy.ts`): tarayıcısı dış ağa doğrudan çıkamayan ortamlarda (CI, kısıtlı
+> ağlar) oyunun ve testlerin çalışabilmesi için gerekliydi. `?tiles=proxy` ile devreye girer;
+> varsayılan hâlâ doğrudan istektir, yani statik dağıtım sunucusuz çalışır.
+
+> **NOT (2026-08-05) — Stilize doku, planda olmayan bir katman.** Uydu sağlayıcısına erişilemediği
+> durumlar için yükseklikten üretilen hipsometrik + gölgeli doku eklendi (`src/world/stylize.ts`).
+> Hem sağlam bir yedek hem de ayarlardan seçilebilen bir sanat tarzı.
+
+### Yapılmayanlar
+
+- **2.5 Havaalanı veritabanı (OurAirports CSV).** Onun yerine ~55 kayıtlık elle seçilmiş bir yer
+  listesi var (`src/data/places.ts`): büyük havaalanları, Türkiye'den ve dünyadan doğal/kültürel
+  noktalar, sürüş rotaları. Anında ve çevrimdışı çalışıyor; gerisi Nominatim'den geliyor.
+- **3.1–3.2 Rapier ve heightfield collider.** Yukarıdaki sapma notuna bakın.
+- **7.4 Ses.** Uygulanmadı.
+- **8.2 Rota editörü ve rota paylaşımı.** Yarış kapıları prosedürel diziliyor; elle rota çizme yok.
+- **8.4 Hayalet (ghost).** Uygulanmadı; en iyi süre saklanıyor.
+- **Faz 9 Multiplayer.** Planda da opsiyoneldi; sunucu gerektirdiği için kullanıcı kararına bırakıldı.
+- **10.4 Sentry / telemetri.** Uygulanmadı.
+- **10.5 Yayın.** Depo dağıtıma hazır (statik build), fakat canlı bir URL'ye deploy edilmedi.
+
+### Doğrulama
+
+- 59 birim testi: geo matematiği, Terrarium çözme, uçuş modeli (11 senaryo), yüzdürme, dalga,
+  araç yerleştirme, Overpass ayrıştırma, yol şeridi ve lamba dizilimi.
+- Playwright smoke testi gerçek uygulamayı gerçek yükseklik servisine karşı açıyor, tile'ların
+  çizildiğini doğruluyor ve konsol/WebGL hatası olmamasını şart koşuyor.
+- Tarayıcıda uçtan uca senaryo: pistten kalkış → tırmanış → dönüş → arabaya geçiş → sürüş →
+  gemiye geçiş → seyir; hatasız.

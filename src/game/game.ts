@@ -20,7 +20,9 @@ import { Minimap } from '../ui/minimap';
 import { SearchPanel, type SearchResult } from '../ui/search';
 import { HelpPanel, SettingsPanel } from '../ui/menu';
 import { RaceMode, formatTime } from '../modes/race';
+import { TouchControls, hasTouch } from '../ui/touch';
 import { PlaneVehicle } from '../vehicles/plane';
+import { CarVehicle } from '../vehicles/car';
 
 const URL_UPDATE_INTERVAL = 5;
 
@@ -42,11 +44,21 @@ export class Game {
   private readonly help: HelpPanel;
   private readonly badge: PlaceBadge;
   private readonly attribution: Attribution;
+  private readonly touch: TouchControls | null;
   private readonly raceHud = document.createElement('div');
   private readonly countdown = document.createElement('div');
   private placeName: string;
   private urlTimer = 0;
   private booted = false;
+  /**
+   * A teleport that is still waiting for terrain.
+   *
+   * Placement needs to know how high the ground is, and right after a jump the
+   * elevation for the destination has not arrived — every sample reads sea
+   * level. Placing then puts an aeroplane inside a mountain and a boat on dry
+   * land, so the destination is re-applied once real data shows up.
+   */
+  private pendingArrival: { place: SearchResult; deadline: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.settings = loadSettings();
@@ -67,6 +79,7 @@ export class Game {
     this.settingsPanel = new SettingsPanel(uiRoot, this.settings);
     this.help = new HelpPanel(uiRoot);
     this.attribution = new Attribution(uiRoot);
+    this.touch = hasTouch() ? new TouchControls(uiRoot, this.input) : null;
 
     this.raceHud.className = 'race-hud panel';
     this.raceHud.style.display = 'none';
@@ -167,6 +180,7 @@ export class Game {
   private wireLoop(): void {
     this.engine.onStep((dt) => {
       this.input.pollGamepad();
+      this.touch?.apply();
       this.vehicles.step(dt, this.input);
       this.input.clearVirtual();
     });
@@ -187,12 +201,17 @@ export class Game {
         this.world.camera.position.z += delta.z;
       }
 
+      // Headlights follow the sky, and go out with the car.
+      const car = this.vehicles.active;
+      if (car instanceof CarVehicle) car.headlightPower = this.world.sky.nightAmount;
+
       this.world.update(dt);
+      this.updatePendingArrival();
       this.race.update(dt, this.vehicles.active.getState().position);
       this.updateUi(dt);
     });
 
-    this.engine.onRender(() => this.world.render());
+    this.engine.onRender((_alpha, frameDt) => this.world.render(frameDt));
   }
 
   private updateUi(dt: number): void {
@@ -284,6 +303,16 @@ export class Game {
       this.vehicles.switchTo(kind);
       this.hud.setVehicle(kind);
     }
+    this.applyArrival(place);
+    this.camera.reset();
+    this.race.clear();
+    this.raceHud.style.display = 'none';
+    this.toasts.show(`${place.name} — ışınlandınız.`, 3000);
+    // Terrain for the destination is still streaming; re-place once it lands.
+    this.pendingArrival = { place, deadline: performance.now() + 12_000 };
+  }
+
+  private applyArrival(place: SearchResult): void {
     const state = this.vehicles.active.getState();
     this.vehicles.teleport({
       position: new Vector3(0, 0, 0),
@@ -291,10 +320,19 @@ export class Game {
       speed: state.speed,
       airborne: this.vehicles.kind === 'plane' ? true : undefined,
     });
+    void place;
+  }
+
+  /** Re-applies a teleport once the destination's elevation has loaded. */
+  private updatePendingArrival(): void {
+    if (!this.pendingArrival) return;
+    const ready = this.world.hasDetailAt(0, 0, 11);
+    if (!ready && performance.now() < this.pendingArrival.deadline) return;
+    const { place } = this.pendingArrival;
+    this.pendingArrival = null;
+    if (!ready) return; // gave up waiting; leave the player where they are
+    this.applyArrival(place);
     this.camera.reset();
-    this.race.clear();
-    this.raceHud.style.display = 'none';
-    this.toasts.show(`${place.name} — ışınlandınız.`, 3000);
   }
 
   private applySettings(settings: Settings): void {

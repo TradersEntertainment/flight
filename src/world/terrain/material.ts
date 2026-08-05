@@ -85,7 +85,7 @@ const MAP_FRAGMENT = /* glsl */ `
     if (uNight > 0.001) {
       float luma = dot(terrainTexel.rgb, vec3(0.299, 0.587, 0.114));
       vec3 cool = mix(vec3(luma), terrainTexel.rgb, 0.55) * uNightTint;
-      terrainTexel.rgb = mix(terrainTexel.rgb, cool * 0.30, uNight);
+      terrainTexel.rgb = mix(terrainTexel.rgb, cool * 0.46, uNight);
     }
 
     diffuseColor *= terrainTexel;

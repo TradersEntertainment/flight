@@ -1,0 +1,75 @@
+# Bilinen sınırlar
+
+Bunlar hata değil, bilinçli takaslar ya da veri kaynaklarının doğal sınırları. Her biri için
+sebep ve (varsa) çözüm yolu yazılı.
+
+## Denizin dibi yok, su tespiti yükseklikten yapılıyor
+
+Terrarium veri setinde **batimetri yok**: açık deniz her yerde tam olarak 0.0 m okunur (ölçüldü —
+Ege, Marmara, Akdeniz, Atlantik hepsi 0.0). Bu yüzden su testi "yükseklik ≤ 0", kara testi
+"yükseklik > 1 m" olarak tanımlandı. Sonuçları:
+
+- **Deniz tabanı düzdür.** Derinlik yoktur; su rengi derinliğe göre değişmez, sığ/derin ayrımı
+  yapılamaz. Su yüzeyi altındaki arazi, z-fighting'i önlemek için 2.5 m aşağı çekilir.
+- **Deniz seviyesinin altındaki karalar su sayılır.** Hollanda polderleri, Lut Gölü çevresi,
+  Death Valley. Buralarda gemiyle "yüzülebilir".
+- **Yükseltideki göller su sayılmaz.** Van Gölü (1640 m), Salda, Sapanca — deniz düzlemi yalnızca
+  y=0'dadır, dolayısıyla bu göller kara olarak render edilir ve gemi karaya oturur.
+- **Nehirler yok.** Terrarium çözünürlüğünde (z15 ≈ 23–30 m) çoğu nehir yatağı zaten görünmez.
+
+Çözüm yolu: OSM su poligonlarını (`water-polygons`) tile'layıp maske olarak kullanmak, derinlik
+için ayrı bir batimetri seti (GEBCO) eklemek. Plan dışında bırakıldı: her ikisi de kendi tile
+pipeline'ını gerektiriyor.
+
+## Arazi çözünürlüğü z15'te biter
+
+Terrarium verisi z15'e kadar var; bu ekvatorda ~30 m, Türkiye enlemlerinde ~23 m örnek aralığı
+demek. Uydu görüntüsü z19'a kadar inebildiği için görüntü keskinleşmeye devam eder ama **geometri
+yumuşak kalır**: tek tek binalar, kaldırımlar, dar vadi tabanları yoktur. Yerden bakışta bunu
+telafi etmek için şaderde mesafeyle sönümlenen prosedürel detay var.
+
+Araba modunda pratik sonucu: tepeler ve virajlar gerçek, ama yol yatağı gerçek yol yüzeyi değil —
+arazi yüzeyidir. OSM yol şeritleri bunun üzerine 45 cm yükseltilerek çizilir.
+
+## Yollar ve lambalar Overpass'a bağlı
+
+Yol geometrisi genel Overpass sunucularından çekilir. Sunucu yoğunsa, engelliyse ya da çevrimdışıysa
+o hücre boş kalır ve oyun yollarsız devam eder. Bu kasıtlı: yollar dekoratiftir, oynanış onlara
+bağlı değildir.
+
+Yoğun kullanım için kendi Overpass instance'ınızı ya da önceden hazırlanmış bir vektör tile
+setini koymak gerekir.
+
+## Uydu görüntüsü sağlayıcıları
+
+Esri World Imagery kullanım koşulları doğrudan tile çekimi için gri alandır; yayına çıkarken
+kendi anahtarınızla MapTiler/Mapbox kullanmanız önerilir (`?maptiler=ANAHTAR` ya da proxy
+tarafında `MAPTILER_KEY`). Hiçbiri yoksa oyun stilize dokuya düşer ve tam olarak çalışmaya devam
+eder.
+
+## Re-anchor sırasında ölçek mikro-değişimi
+
+Sahne, oyuncunun enlemine göre `cos(lat)` ile ölçeklenen yerel bir düzlemdir. Çapa taşındığında bu
+katsayı değişir (0.3° enlem ≈ %0.5). Coğrafi olarak sabit her şey (arazi, yollar) konumunu
+lon/lat'tan yeniden hesapladığı için yerinde kalır; yalnızca mutlak metre ölçeği bu kadar kayar.
+Görsel olarak fark edilmez. Tam doğruluk için ECEF/elipsoit koordinatlara geçmek gerekir.
+
+## Çarpışma yalnızca zeminle
+
+Araçlar birbirine ve yapılara çarpmaz; 3B bina yoktur. Uçak "çarpma" durumu yalnızca zeminle
+temas testidir (dik açı ya da yüksek dikey hız).
+
+## Yarış rotaları prosedürel
+
+Kapılar oyuncunun önüne, gidiş yönü boyunca hafif kıvrımla dizilir. Elle rota çizme editörü
+(planın 8.2 maddesi) uygulanmadı; rota paylaşımı da bu yüzden yok. Konum paylaşımı (adres
+çubuğundaki bağlantı) çalışıyor.
+
+## Performans
+
+Hedef, orta seviye bir dizüstünde 60 fps'tir. Geliştirme ortamındaki ölçümler yazılım
+rasterizasyonuyla (SwiftShader) alındığı için gerçek GPU performansını temsil etmez; kare bütçesi
+CPU tarafında ölçüldü (arazi güncellemesi ~0.25 ms, yükseklik örneği ~1.6 µs).
+
+Mobilde otomatik olarak "Düşük" kalite seçilir; dokunmatik kontroller çalışır ama uzun süreli
+mobil testi yapılmadı.

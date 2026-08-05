@@ -39,7 +39,9 @@ export function readSpawnFromUrl(): UrlState {
   if (Number.isFinite(lon) && Number.isFinite(lat) && (lon !== 0 || lat !== 0)) {
     state.lon = Math.max(-180, Math.min(180, lon));
     state.lat = Math.max(-85, Math.min(85, lat));
-    state.name = params.get('name') ?? undefined;
+    // A shared link without a name is a place we cannot name; do not keep the
+    // default spawn's label, which would be plainly wrong.
+    state.name = params.get('name') ?? 'Seçilen konum';
     state.altitude = numberOr(params.get('alt'), 600);
     state.heading = numberOr(params.get('hdg'), 0);
   }

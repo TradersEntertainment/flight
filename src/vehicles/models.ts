@@ -19,6 +19,7 @@ import {
   MeshStandardMaterial,
   Object3D,
   SphereGeometry,
+  SpotLight,
   type ColorRepresentation,
 } from 'three';
 
@@ -121,6 +122,8 @@ export interface CarModel {
   group: Group;
   wheels: Object3D[];
   brakeLights: Mesh[];
+  /** Real lights, so the road ahead is actually lit at night. */
+  headlightBeams: SpotLight[];
 }
 
 /** Low coupé, nose pointing down -z, sized for a 4.4 m car. */
@@ -182,8 +185,21 @@ export function createCar(): CarModel {
     wheels.push(wheel);
   }
 
+  // Two spot lights pointing down the road. They live in the car's group so
+  // they inherit its pitch and roll on a slope; intensity is driven by the time
+  // of day, and set to zero when the car is not the active vehicle.
+  const headlightBeams: SpotLight[] = [];
+  for (const x of [-0.62, 0.62]) {
+    const beam = new SpotLight(0xfff0d0, 0, 140, Math.PI / 7, 0.55, 1.1);
+    beam.position.set(x, 0.78, -2.2);
+    beam.target.position.set(x * 1.6, -1.4, -34);
+    group.add(beam);
+    group.add(beam.target);
+    headlightBeams.push(beam);
+  }
+
   group.name = 'car';
-  return { group, wheels, brakeLights };
+  return { group, wheels, brakeLights, headlightBeams };
 }
 
 export interface BoatModel {

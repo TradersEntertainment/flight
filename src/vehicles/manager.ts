@@ -52,8 +52,16 @@ export function findGround(
   return { position: origin.clone(), moved: false, distance: 0 };
 }
 
-export const isLand = (height: number): boolean => height > 1.5;
-export const isWater = (height: number): boolean => height < -1.5;
+/**
+ * Land and water tests.
+ *
+ * The elevation dataset has no bathymetry: every open-water sample is exactly
+ * 0 m, and land is positive. So water is "at or below sea level" and land needs
+ * a metre of clearance, which also keeps a placement off the interpolated
+ * shoreline where a sample mixes beach and sea.
+ */
+export const isLand = (height: number): boolean => height > 1;
+export const isWater = (height: number): boolean => height <= 0;
 
 export class VehicleManager {
   readonly group = new Group();

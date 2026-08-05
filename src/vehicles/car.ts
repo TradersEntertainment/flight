@@ -83,6 +83,8 @@ export class CarVehicle implements Vehicle {
   private steerAngle = 0;
   private drift = 0;
   private braking = false;
+  /** 0..1, set by the game from the time of day. */
+  headlightPower = 0;
 
   constructor() {
     this.model = createCar();
@@ -215,6 +217,9 @@ export class CarVehicle implements Vehicle {
       const material = light.material as MeshStandardMaterial;
       material.emissiveIntensity = this.braking ? 6 : 1.2;
     }
+    // Headlights come on as the light fades; full beam only at night.
+    const beam = this.headlightPower * 165;
+    for (const light of this.model.headlightBeams) light.intensity = beam;
   }
 
   shift(delta: { x: number; z: number }): void {

@@ -95,19 +95,19 @@ describe('vehicle placement', () => {
   });
 
   it('finds the nearest land when the car is dropped at sea', () => {
-    // Land only east of x = 500.
-    const world = fakeWorld((x) => (x > 500 ? 40 : -30));
+    // Land only east of x = 500; open water reads 0, as the real data does.
+    const world = fakeWorld((x) => (x > 500 ? 40 : 0));
     const result = findGround(world, new Vector3(0, 0, 0), isLand);
     expect(result.moved).toBe(true);
     expect(result.position.x).toBeGreaterThan(500);
-    expect(world.heightAt(result.position.x, result.position.z)).toBeGreaterThan(1.5);
+    expect(world.heightAt(result.position.x, result.position.z)).toBeGreaterThan(1);
   });
 
   it('finds water when the boat is dropped inland', () => {
-    const world = fakeWorld((_x, z) => (z < -800 ? -20 : 120));
+    const world = fakeWorld((_x, z) => (z < -800 ? 0 : 120));
     const result = findGround(world, new Vector3(0, 0, 0), isWater);
     expect(result.moved).toBe(true);
-    expect(world.heightAt(result.position.x, result.position.z)).toBeLessThan(-1.5);
+    expect(world.heightAt(result.position.x, result.position.z)).toBeLessThanOrEqual(0);
   });
 
   it('gives up gracefully when nothing matches', () => {
@@ -117,12 +117,15 @@ describe('vehicle placement', () => {
     expect(result.position.x).toBe(3);
   });
 
-  it('does not treat the shoreline as either land or water', () => {
-    // A metre either side of sea level is ambiguous ground; both tests reject it
-    // so a vehicle is never placed half in the water.
-    expect(isLand(0.5)).toBe(false);
-    expect(isWater(-0.5)).toBe(false);
-    expect(isLand(5)).toBe(true);
+  it('classifies sea level as water and keeps land off the shoreline', () => {
+    // The data has no bathymetry: open sea is exactly 0 m, so that must count
+    // as water or a boat could never be placed at sea.
+    expect(isWater(0)).toBe(true);
     expect(isWater(-5)).toBe(true);
+    // Land needs clearance, so a vehicle is never dropped on the waterline.
+    expect(isLand(0.5)).toBe(false);
+    expect(isLand(0)).toBe(false);
+    expect(isLand(5)).toBe(true);
+    expect(isWater(0.5)).toBe(false);
   });
 });

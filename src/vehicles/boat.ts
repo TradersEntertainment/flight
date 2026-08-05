@@ -35,8 +35,14 @@ export const DEFAULT_BOAT: BoatConfig = {
   draft: 0.35,
 };
 
-/** Ground height above which the hull runs aground, metres. */
-const GROUNDING_DEPTH = -0.6;
+/**
+ * Ground height above which the hull runs aground, metres.
+ *
+ * Open water reads exactly 0 m in the elevation data (there is no bathymetry),
+ * so grounding has to key off land rising above sea level rather than off a
+ * depth. The small positive margin lets the boat run right up to the beach.
+ */
+const GROUNDING_DEPTH = 0.4;
 
 const _euler = new Euler();
 

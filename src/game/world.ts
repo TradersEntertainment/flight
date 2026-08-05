@@ -22,6 +22,8 @@ import { createTerrainUniforms, type TerrainUniforms } from '../world/terrain/ma
 import { resolveProvider } from '../world/imagery/providers';
 import { Sky, type TimeOfDay } from '../world/sky';
 import { Ocean } from '../world/water';
+import { PostProcessing } from '../world/post';
+import { Roads } from '../world/roads';
 import { quality, type Settings } from '../core/settings';
 
 export interface WorldOptions {
@@ -41,6 +43,8 @@ export class World {
   readonly sky: Sky;
   readonly ocean: Ocean;
   readonly uniforms: TerrainUniforms;
+  readonly roads: Roads;
+  private post: PostProcessing | null = null;
   private readonly fetcher: TileFetcher;
   private settings: Settings;
   /** Seconds of world time, drives waves and animation. */
@@ -93,6 +97,10 @@ export class World {
     this.ocean = new Ocean({ extent: 6000, segments: q.waterDetail });
     this.scene.add(this.ocean.group);
 
+    this.roads = new Roads((x, z) => this.heightAt(x, z), { enabled: q.vectors });
+    this.scene.add(this.roads.group);
+
+    this.setupPost(q.postFx, q.bloom);
     window.addEventListener('resize', this.onResize);
     this.warmUpAt(opts.spawn.lon, opts.spawn.lat);
   }
@@ -107,12 +115,26 @@ export class World {
     for (let z = 5; z <= 15; z++) this.elevation.ensureAt(lon, lat, z, -100 + z);
   }
 
+  private setupPost(enabled: boolean, bloom: boolean): void {
+    this.post?.dispose();
+    this.post = enabled
+      ? new PostProcessing(this.renderer, this.scene, this.camera, { bloom, antialias: true })
+      : null;
+    if (this.post && !this.post.available) {
+      // The composer failed to build (old driver, lost context): drop back to a
+      // forward pass rather than showing nothing.
+      this.post = null;
+      this.onNotice?.('Görsel efektler bu cihazda kapatıldı.');
+    }
+  }
+
   private onResize = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
+    this.post?.setSize(w, h);
   };
 
   applySettings(settings: Settings): void {
@@ -129,6 +151,8 @@ export class World {
     });
     this.ocean.setDetail(q.waterDetail);
     this.elevation.budget = Math.round(q.tileBudget * 0.8);
+    this.roads.setEnabled(q.vectors);
+    this.setupPost(q.postFx, q.bloom);
   }
 
   get currentSettings(): Settings {
@@ -185,15 +209,22 @@ export class World {
     // Keep full-detail elevation under the camera even when terrain culls it.
     const ll = this.lonLatOf(this.camera.position);
     this.elevation.ensureAt(ll.lon, ll.lat, 15, -50);
+    this.roads.setNight(this.sky.nightAmount);
+    // Roads are only worth streaming near the ground; from altitude they are
+    // invisible anyway and the requests would be wasted.
+    if (this.uniforms.uCameraHeight.value < 2500) this.roads.update(this.anchor, ll.lon, ll.lat);
   }
 
-  render(): void {
+  render(dt: number): void {
+    this.post?.setNight(this.sky.nightAmount);
+    if (this.post?.render(dt)) return;
     this.renderer.render(this.scene, this.camera);
   }
 
   get attribution(): string {
     const parts = ['Terrain: Mapzen / AWS Open Data'];
     if (this.textures.attribution) parts.unshift(this.textures.attribution);
+    if (this.roads.hasData) parts.push('Yollar © OpenStreetMap katkıcıları');
     return parts.join(' · ');
   }
 
@@ -204,6 +235,8 @@ export class World {
     this.elevation.dispose();
     this.sky.dispose();
     this.ocean.dispose();
+    this.roads.dispose();
+    this.post?.dispose();
     this.renderer.dispose();
   }
 }
