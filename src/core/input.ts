@@ -22,7 +22,6 @@ export type Command =
   | 'camera'
   | 'reset'
   | 'search'
-  | 'map'
   | 'timeOfDay'
   | 'help'
   | 'menu'
@@ -51,7 +50,6 @@ const KEY_COMMANDS: Record<string, Command> = {
   KeyC: 'camera',
   KeyR: 'reset',
   KeyT: 'search',
-  KeyM: 'map',
   KeyN: 'timeOfDay',
   KeyH: 'help',
   Escape: 'menu',
