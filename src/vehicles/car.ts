@@ -11,6 +11,7 @@
 import { Euler, Group, Quaternion, Vector3, type MeshStandardMaterial } from 'three';
 import { createCar, type CarModel } from './models';
 import type { CameraTarget, HudReading, Vehicle, VehicleState } from './types';
+import type { RoadSurface } from '../world/roads';
 import type { Input } from '../core/input';
 import type { World } from '../game/world';
 
@@ -27,6 +28,10 @@ export interface CarConfig {
   /** Lateral grip as a decay rate; higher sticks harder. */
   grip: number;
   handbrakeGrip: number;
+  /** Multipliers applied while the car is on a road surface. */
+  roadGrip: number;
+  roadRollingResistance: number;
+  roadTopSpeed: number;
   maxSteerRate: number;
   rideHeight: number;
   /** Half the wheelbase / track, for the probe points. */
@@ -44,6 +49,9 @@ export const DEFAULT_CAR: CarConfig = {
   rollingResistance: 1.4,
   grip: 5.2,
   handbrakeGrip: 0.7,
+  roadGrip: 1.45,
+  roadRollingResistance: 0.45,
+  roadTopSpeed: 1.25,
   maxSteerRate: 1.5,
   rideHeight: 0.42,
   halfLength: 1.45,
@@ -83,6 +91,8 @@ export class CarVehicle implements Vehicle {
   private steerAngle = 0;
   private drift = 0;
   private braking = false;
+  /** The road the car is on, or null when it is off-road. */
+  private road: RoadSurface | null = null;
   /** 0..1, set by the game from the time of day. */
   headlightPower = 0;
 
@@ -102,7 +112,13 @@ export class CarVehicle implements Vehicle {
 
   step(dt: number, input: Input, world: World): void {
     const cfg = this.config;
-    const height = (x: number, z: number): number => world.heightAt(x, z);
+    // On a road the car rides the tarmac, which is smoothed and lifted clear of
+    // the 30 m elevation grid; off it, the raw terrain.
+    this.road = world.roadSurfaceAt(this.position.x, this.position.z);
+    const height = (x: number, z: number): number => {
+      const road = world.roadSurfaceAt(x, z);
+      return road ? road.height : world.heightAt(x, z);
+    };
     const throttle = input.axis('throttleDown', 'throttleUp');
     const steer = input.axis('left', 'right');
     const handbrake = input.value('brake') > 0;
@@ -153,10 +169,15 @@ export class CarVehicle implements Vehicle {
     let vForward = this.velocity.dot(_forward);
     let vRight = this.velocity.dot(_right);
 
+    // Tarmac gives more grip, less rolling drag and a higher top speed than
+    // open ground: that difference is the reason to look for a road at all.
+    const onRoad = this.road !== null;
+    const topSpeed = cfg.topSpeed * (onRoad ? cfg.roadTopSpeed : 1);
+
     // Engine, brake and reverse.
     let accel = 0;
     if (throttle > 0) {
-      const fade = Math.max(0, 1 - Math.abs(vForward) / cfg.topSpeed);
+      const fade = Math.max(0, 1 - Math.abs(vForward) / topSpeed);
       accel = throttle * cfg.enginePower * (0.45 + 0.55 * fade);
     } else if (throttle < 0) {
       accel = vForward > 0.5 ? throttle * cfg.brakePower : throttle * cfg.reversePower;
@@ -166,7 +187,8 @@ export class CarVehicle implements Vehicle {
     // Gravity along the slope, plus resistance.
     accel += -GRAVITY * _forward.y;
     const speed = Math.abs(vForward);
-    accel -= Math.sign(vForward) * (cfg.rollingResistance + cfg.dragLinear * speed);
+    const rolling = cfg.rollingResistance * (onRoad ? cfg.roadRollingResistance : 1);
+    accel -= Math.sign(vForward) * (rolling + cfg.dragLinear * speed);
     accel -= Math.sign(vForward) * cfg.dragQuadratic * speed * speed;
     if (throttle === 0 && speed < 0.6) {
       vForward = 0;
@@ -176,7 +198,7 @@ export class CarVehicle implements Vehicle {
 
     // Lateral grip: the sideways component decays, slowly with the handbrake on,
     // which is what makes the back end step out.
-    const grip = handbrake ? cfg.handbrakeGrip : cfg.grip;
+    const grip = handbrake ? cfg.handbrakeGrip : cfg.grip * (onRoad ? cfg.roadGrip : 1);
     vRight *= Math.exp(-grip * dt);
     this.drift = Math.min(1, Math.abs(vRight) / 9);
 
@@ -199,9 +221,13 @@ export class CarVehicle implements Vehicle {
 
   private syncObject(world: World): void {
     this.object.position.copy(this.position);
+    const sample = (x: number, z: number): number => {
+      const road = world.roadSurfaceAt(x, z);
+      return road ? road.height : world.heightAt(x, z);
+    };
     const normal = this.airborne
       ? _normal.set(0, 1, 0)
-      : surfaceNormal((x, z) => world.heightAt(x, z), this.position.x, this.position.z, 2, _normal);
+      : surfaceNormal(sample, this.position.x, this.position.z, 2, _normal);
 
     // Face along the heading, then tilt onto the surface normal.
     _q.setFromEuler(_euler.set(0, this.heading, 0, 'YXZ'));
@@ -259,6 +285,7 @@ export class CarVehicle implements Vehicle {
       throttle: Math.min(1, speed / this.config.topSpeed),
       heading: this.heading,
       warning: this.drift > 0.55 ? 'DRIFT' : null,
+      surface: this.road?.name ?? (this.road ? 'yol' : null),
     };
   }
 

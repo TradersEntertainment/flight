@@ -51,6 +51,8 @@ export interface HudReading {
   heading: number;
   /** Short warning text, e.g. stall. */
   warning: string | null;
+  /** Name of the road being driven, when there is one. */
+  surface?: string | null;
 }
 
 export interface Vehicle {

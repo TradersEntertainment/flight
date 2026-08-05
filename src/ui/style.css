@@ -306,6 +306,29 @@ body {
   margin-top: 0.15rem;
 }
 
+/* ---------- road label ---------- */
+
+.road-label {
+  position: absolute;
+  left: 1.2rem;
+  bottom: calc(1.2rem + 190px + 0.5rem);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-left: 3px solid var(--accent);
+}
+
+@media (max-width: 640px) {
+  .road-label {
+    bottom: calc(1.2rem + 128px + 0.4rem);
+    font-size: 0.72rem;
+  }
+}
+
 /* ---------- minimap ---------- */
 
 .minimap {

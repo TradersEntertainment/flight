@@ -187,3 +187,32 @@ export class PlaceBadge {
     this.coords.textContent = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
   }
 }
+
+/**
+ * The name of the road being driven.
+ *
+ * Sits by the minimap and only appears when there is a road under the wheels —
+ * the small detail that turns "driving over terrain" into "driving somewhere".
+ */
+export class RoadLabel {
+  private readonly root = document.createElement('div');
+  private current: string | null = null;
+
+  constructor(parent: HTMLElement) {
+    this.root.className = 'road-label panel';
+    this.root.style.display = 'none';
+    parent.appendChild(this.root);
+  }
+
+  set(name: string | null | undefined): void {
+    const next = name ?? null;
+    if (next === this.current) return;
+    this.current = next;
+    if (!next) {
+      this.root.style.display = 'none';
+      return;
+    }
+    this.root.textContent = next;
+    this.root.style.display = '';
+  }
+}

@@ -90,6 +90,61 @@ export function buildRibbon(points: RibbonPoint[], width: number): RibbonGeometr
   return { positions, uvs, indices };
 }
 
+/**
+ * Resamples a polyline at a fixed spacing.
+ *
+ * OpenStreetMap puts a point wherever the geometry bends, which can be 200 m
+ * apart on a motorway. Draping such a line over the terrain would cut straight
+ * through hills, so it is resampled before the heights are read.
+ */
+export function resamplePolyline(points: RibbonPoint[], spacing: number): RibbonPoint[] {
+  if (points.length < 2 || spacing <= 0) return points.slice();
+  const out: RibbonPoint[] = [points[0]];
+  let carry = spacing;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const segment = Math.hypot(dx, dz);
+    if (segment < 1e-6) continue;
+    let travelled = carry;
+    while (travelled < segment) {
+      const t = travelled / segment;
+      out.push({ x: a.x + dx * t, y: a.y + (b.y - a.y) * t, z: a.z + dz * t });
+      travelled += spacing;
+    }
+    carry = travelled - segment;
+    // Always keep the original vertex: it is where the road actually bends.
+    out.push(b);
+    carry = spacing;
+  }
+  return out;
+}
+
+/**
+ * Smooths the height profile of a polyline in place.
+ *
+ * A road surface is engineered flat; the terrain under it is a 30 m grid with
+ * its own noise. Averaging the sampled heights over a few points stops the
+ * ribbon rippling while still letting it climb a real hill.
+ */
+export function smoothHeights(points: RibbonPoint[], window = 2): void {
+  if (points.length < 3) return;
+  const source = points.map((p) => p.y);
+  for (let i = 0; i < points.length; i++) {
+    let sum = 0;
+    let count = 0;
+    for (let k = -window; k <= window; k++) {
+      const index = i + k;
+      if (index < 0 || index >= source.length) continue;
+      sum += source[index];
+      count++;
+    }
+    points[i].y = sum / count;
+  }
+}
+
 /** Total ground length of a polyline, in metres. */
 export function polylineLength(points: RibbonPoint[]): number {
   let total = 0;

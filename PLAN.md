@@ -749,6 +749,15 @@ yapılmayanlar burada toplu olarak yazılı.
 > durumlar için yükseklikten üretilen hipsometrik + gölgeli doku eklendi (`src/world/stylize.ts`).
 > Hem sağlam bir yedek hem de ayarlardan seçilebilen bir sanat tarzı.
 
+> **NOT (2026-08-05) — Yollar sürülebilir hale getirildi, binalar eklendi.** Plan yolları yalnızca
+> görsel katman olarak öngörüyordu (6.4). Uygulamada yollar sorgulanabilir: `Roads.surfaceAt`
+> hücre başına bir ızgara üzerinden "bu noktada yol var mı, yüksekliği ne, adı ne" sorusunu 2.4 µs'de
+> yanıtlıyor. Araba asfalt üzerinde daha çok tutunuyor, daha az direnç görüyor ve daha hızlı
+> gidiyor; yol adı ekranda görünüyor. Ayrıca planda hiç olmayan **binalar** eklendi
+> (`src/world/buildings/`): OSM alanları kulak-kırpma üçgenlemesiyle katı kütleye dönüştürülüyor,
+> pencereler şader deseni olarak çiziliyor. Yollar ve binalar ortak bir hücre akış motorunu ve tek
+> bir istek sırasını paylaşıyor (`src/world/osm/cellStreamer.ts`).
+
 ### Yapılmayanlar
 
 - **2.5 Havaalanı veritabanı (OurAirports CSV).** Onun yerine ~55 kayıtlık elle seçilmiş bir yer
@@ -764,9 +773,12 @@ yapılmayanlar burada toplu olarak yazılı.
 
 ### Doğrulama
 
-- 59 birim testi: geo matematiği, Terrarium çözme, uçuş modeli (11 senaryo), yüzdürme, dalga,
-  araç yerleştirme, Overpass ayrıştırma, yol şeridi ve lamba dizilimi.
+- 82 birim testi: geo matematiği, Terrarium çözme, uçuş modeli (11 senaryo), yüzdürme, dalga,
+  araç yerleştirme, Overpass ayrıştırma (yol + bina), yol şeridi, lamba dizilimi, yol profili
+  düzleştirme, poligon üçgenleme ve bina ekstrüzyonu.
 - Playwright smoke testi gerçek uygulamayı gerçek yükseklik servisine karşı açıyor, tile'ların
   çizildiğini doğruluyor ve konsol/WebGL hatası olmamasını şart koşuyor.
 - Tarayıcıda uçtan uca senaryo: pistten kalkış → tırmanış → dönüş → arabaya geçiş → sürüş →
   gemiye geçiş → seyir; hatasız.
+- Yol ve bina render/sürüş hattı `scripts/osmPreview.mjs` ile doğrulandı (sentetik veri; canlı
+  Overpass bu ortamda engelli — bkz. KNOWN_ISSUES).

@@ -1,10 +1,11 @@
 /**
- * Streams OpenStreetMap roads around the player and lights them at night.
+ * Streams OpenStreetMap roads around the player, lights them at night, and lets
+ * vehicles drive on them.
  *
- * The world is divided into cells; the cells around the player are fetched once
- * and turned into ribbon meshes draped over the terrain, with instanced lamp
- * posts along the major ones. This is the layer that gives the night drive its
- * look: a chain of sodium lights running off into the dark.
+ * The geometry is a ribbon draped over the terrain, but a road is more than
+ * decoration here: `surfaceAt` answers "am I on a road, how high is it and what
+ * is it called", which is what makes the car ride the tarmac instead of the
+ * 30 m elevation grid underneath it.
  *
  * Roads are optional. If Overpass is unreachable the cell is marked empty and
  * the game carries on — nothing here is load-bearing.
@@ -17,7 +18,6 @@ import {
   DoubleSide,
   Group,
   InstancedMesh,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -26,60 +26,82 @@ import {
   CylinderGeometry,
 } from 'three';
 import type { Anchor } from '../../geo/anchor';
-import { latToMercatorY, lonToMercatorX } from '../../geo/mercator';
-import { LAMP_SPACING, ROAD_WIDTH, fetchRoads, type Bbox, type RoadWay } from './overpass';
-import { buildRibbon, lampSites, type RibbonPoint } from './ribbon';
+import { CellStreamer, type CellContext } from '../osm/cellStreamer';
+import {
+  LAMP_SPACING,
+  ROAD_WIDTH,
+  fetchRoads,
+  type RoadClass,
+  type RoadWay,
+} from './overpass';
+import {
+  buildRibbon,
+  lampSites,
+  resamplePolyline,
+  smoothHeights,
+  type RibbonPoint,
+} from './ribbon';
 
-/** Cell size in degrees; about 2.2 km of latitude. */
 const CELL_DEGREES = 0.02;
-/** Cells kept resident around the player. */
 const CELL_RADIUS = 2;
-const MAX_CELLS = 40;
+const MAX_CELLS = 36;
 /** Metres the road surface floats above the terrain, to avoid z-fighting. */
 const ROAD_LIFT = 0.45;
 const LAMP_HEIGHT = 8.5;
+/** Spacing the source polyline is resampled to before draping, metres. */
+const RESAMPLE = 12;
+/** Buckets per axis in the per-cell lookup grid. */
+const GRID = 24;
 
-interface Cell {
-  key: string;
-  /** Mercator centre, so the cell can be repositioned after a re-anchor. */
-  merc: { x: number; y: number };
-  group: Group;
-  builtScale: number;
-  state: 'loading' | 'ready' | 'empty';
-  lastUsed: number;
-  abort: AbortController | null;
+interface Segment {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  ay: number;
+  by: number;
+  halfWidth: number;
+  wayIndex: number;
 }
 
-export interface RoadsOptions {
-  enabled: boolean;
+interface CellIndex {
+  /** Segment indices per grid bucket. */
+  buckets: number[][];
+  segments: Segment[];
+  names: Array<string | null>;
+  classes: RoadClass[];
+  /** Local-space extent of the cell, for bucket lookup. */
+  minX: number;
+  minZ: number;
+  size: number;
+}
+
+export interface RoadSurface {
+  /** Height of the road surface at the query point, metres. */
+  height: number;
+  /** 0 at the centre line, 1 at the edge of the carriageway. */
+  edgeDistance: number;
+  name: string | null;
+  roadClass: RoadClass;
 }
 
 export class Roads {
-  readonly group = new Group();
-  private readonly cells = new Map<string, Cell>();
+  readonly group: Group;
+  private readonly streamer: CellStreamer<RoadWay, CellIndex>;
   private readonly roadMaterial: MeshStandardMaterial;
   private readonly lampPostMaterial: MeshStandardMaterial;
   private readonly lampGlowMaterial: MeshBasicMaterial;
   private readonly postGeometry = new CylinderGeometry(0.16, 0.22, LAMP_HEIGHT, 5);
   private readonly bulbGeometry = new SphereGeometry(0.6, 8, 6);
   private readonly dummy = new Object3D();
-  private frame = 0;
-  private inFlight = 0;
-  private enabled: boolean;
-  private anchorEpoch = -1;
-  /** Set once a fetch has succeeded, so the UI can mention road data. */
-  hasData = false;
 
   constructor(
     private readonly heightAt: (x: number, z: number) => number,
-    options: RoadsOptions,
+    options: { enabled: boolean },
   ) {
-    this.enabled = options.enabled;
-    this.group.name = 'roads';
-
     this.roadMaterial = new MeshStandardMaterial({
-      color: 0x22242a,
-      roughness: 0.82,
+      color: 0x24262c,
+      roughness: 0.8,
       metalness: 0.05,
       side: DoubleSide,
       // The ribbon sits just above a terrain surface that changes with LOD;
@@ -96,108 +118,132 @@ export class Roads {
     // Basic material: the bulb is its own light source, so it should not be
     // shaded, and bloom picks it up from the raw colour.
     this.lampGlowMaterial = new MeshBasicMaterial({ color: new Color(0xffd08a) });
+
+    this.streamer = new CellStreamer<RoadWay, CellIndex>({
+      name: 'roads',
+      cellDegrees: CELL_DEGREES,
+      radius: CELL_RADIUS,
+      maxCells: MAX_CELLS,
+      fetch: (bbox, signal) => fetchRoads(bbox, signal),
+      build: (items, context) => this.build(items, context),
+      disposeCell: (group) => {
+        // Materials are shared across cells; only geometry is per-cell.
+        group.traverse((child) => (child as Mesh).geometry?.dispose());
+        group.clear();
+      },
+    });
+    this.streamer.enabled = options.enabled;
+    this.group = this.streamer.group;
   }
 
   setEnabled(enabled: boolean): void {
-    if (enabled === this.enabled) return;
-    this.enabled = enabled;
-    if (!enabled) this.clear();
+    this.streamer.setEnabled(enabled);
   }
 
   /** Dims the lamps in daylight; they are only interesting at night. */
   setNight(night: number): void {
     const glow = 0.18 + night * 0.82;
     this.lampGlowMaterial.color.setRGB(glow, glow * 0.82, glow * 0.55);
-    this.group.visible = this.enabled;
+  }
+
+  get hasData(): boolean {
+    return this.streamer.hasData;
+  }
+
+  get stats(): { cells: number; ready: number; pending: number } {
+    return this.streamer.stats;
   }
 
   update(anchor: Anchor, lon: number, lat: number): void {
-    if (!this.enabled) return;
-    this.frame++;
+    this.streamer.update(anchor, lon, lat);
+  }
 
-    if (anchor.epoch !== this.anchorEpoch) {
-      this.anchorEpoch = anchor.epoch;
-      for (const cell of this.cells.values()) this.position(cell, anchor);
-    }
+  /** Feeds ways straight in, for the screenshot harness and tests. */
+  ingest(lon: number, lat: number, ways: RoadWay[], anchor: Anchor): void {
+    this.streamer.ingestDirect(lon, lat, ways, anchor);
+  }
 
-    const cellX = Math.floor(lon / CELL_DEGREES);
-    const cellY = Math.floor(lat / CELL_DEGREES);
-    for (let dy = -CELL_RADIUS; dy <= CELL_RADIUS; dy++) {
-      for (let dx = -CELL_RADIUS; dx <= CELL_RADIUS; dx++) {
-        this.ensureCell(cellX + dx, cellY + dy, anchor);
+  clear(): void {
+    this.streamer.clear();
+  }
+
+  /**
+   * The road under a world position, if there is one.
+   *
+   * Returns the closest carriageway the point falls inside. Called once per
+   * vehicle step, so it walks a per-cell bucket grid rather than every segment.
+   */
+  surfaceAt(x: number, z: number): RoadSurface | null {
+    let best: RoadSurface | null = null;
+    let bestDistance = Infinity;
+
+    for (const { data, group } of this.streamer.ready) {
+      const scale = group.scale.x || 1;
+      const lx = (x - group.position.x) / scale;
+      const lz = (z - group.position.z) / scale;
+      const gx = Math.floor(((lx - data.minX) / data.size) * GRID);
+      const gz = Math.floor(((lz - data.minZ) / data.size) * GRID);
+      if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) continue;
+
+      // The neighbouring buckets matter: a segment can cross a bucket border.
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const bx = gx + dx;
+          const bz = gz + dz;
+          if (bx < 0 || bz < 0 || bx >= GRID || bz >= GRID) continue;
+          for (const index of data.buckets[bz * GRID + bx]) {
+            const segment = data.segments[index];
+            const hit = distanceToSegment(lx, lz, segment);
+            if (hit.distance > segment.halfWidth) continue;
+            if (hit.distance >= bestDistance) continue;
+            bestDistance = hit.distance;
+            best = {
+              height: segment.ay + (segment.by - segment.ay) * hit.t,
+              edgeDistance: hit.distance / segment.halfWidth,
+              name: data.names[segment.wayIndex],
+              roadClass: data.classes[segment.wayIndex],
+            };
+          }
+        }
       }
     }
-    this.evict();
+    return best;
   }
 
-  private ensureCell(cellX: number, cellY: number, anchor: Anchor): void {
-    const key = `${cellX}/${cellY}`;
-    const existing = this.cells.get(key);
-    if (existing) {
-      existing.lastUsed = this.frame;
-      return;
-    }
-    // One request at a time: Overpass is a shared public service.
-    if (this.inFlight >= 1) return;
-
-    const bbox: Bbox = {
-      west: cellX * CELL_DEGREES,
-      south: cellY * CELL_DEGREES,
-      east: (cellX + 1) * CELL_DEGREES,
-      north: (cellY + 1) * CELL_DEGREES,
-    };
-    const centreLon = (bbox.west + bbox.east) / 2;
-    const centreLat = (bbox.south + bbox.north) / 2;
-    const cell: Cell = {
-      key,
-      merc: { x: lonToMercatorX(centreLon), y: latToMercatorY(centreLat) },
-      group: new Group(),
-      builtScale: anchor.scale,
-      state: 'loading',
-      lastUsed: this.frame,
-      abort: new AbortController(),
-    };
-    this.cells.set(key, cell);
-    this.inFlight++;
-
-    void fetchRoads(bbox, cell.abort?.signal)
-      .then((ways) => {
-        cell.abort = null;
-        if (!this.cells.has(key)) return;
-        if (ways.length === 0) {
-          cell.state = 'empty';
-          return;
-        }
-        this.hasData = true;
-        this.build(cell, ways, anchor);
-        cell.state = 'ready';
-        this.group.add(cell.group);
-      })
-      .catch(() => {
-        cell.state = 'empty';
-      })
-      .finally(() => {
-        this.inFlight--;
-      });
+  dispose(): void {
+    this.streamer.clear();
+    this.roadMaterial.dispose();
+    this.lampPostMaterial.dispose();
+    this.lampGlowMaterial.dispose();
+    this.postGeometry.dispose();
+    this.bulbGeometry.dispose();
   }
 
-  /** Builds one merged mesh per road class, plus the lamps. */
-  private build(cell: Cell, ways: RoadWay[], anchor: Anchor): void {
-    const centre = anchor.worldFromMercator(cell.merc.x, cell.merc.y);
+  /** Builds one merged mesh per road class, the lamps, and the lookup grid. */
+  private build(ways: RoadWay[], context: CellContext): { group: Group; data: CellIndex } | null {
+    const group = new Group();
     const byClass = new Map<string, { positions: number[]; uvs: number[]; indices: number[] }>();
-    const lampMatrices: Matrix4[] = [];
+    const lampPositions: Array<{ x: number; y: number; z: number }> = [];
+    const segments: Segment[] = [];
+    const names: Array<string | null> = [];
+    const classes: RoadClass[] = [];
 
     for (const way of ways) {
-      const points: RibbonPoint[] = way.points.map((point) => {
-        const world = anchor.worldFromLonLat(point.lon, point.lat);
-        return {
-          x: world.x - centre.x,
-          y: this.heightAt(world.x, world.z) + ROAD_LIFT,
-          z: world.z - centre.z,
-        };
+      const raw: RibbonPoint[] = way.points.map((point) => {
+        const world = context.anchor.worldFromLonLat(point.lon, point.lat);
+        return { x: world.x - context.centre.x, y: 0, z: world.z - context.centre.z };
       });
+      // Resample first, then read the terrain, then flatten the profile: a road
+      // is engineered, so it should not inherit every ripple of the elevation
+      // grid it crosses.
+      const points = resamplePolyline(raw, RESAMPLE);
+      for (const point of points) {
+        point.y = this.heightAt(point.x + context.centre.x, point.z + context.centre.z) + ROAD_LIFT;
+      }
+      smoothHeights(points, 2);
 
-      const ribbon = buildRibbon(points, ROAD_WIDTH[way.roadClass]);
+      const width = ROAD_WIDTH[way.roadClass];
+      const ribbon = buildRibbon(points, width);
       if (!ribbon) continue;
 
       let bucket = byClass.get(way.roadClass);
@@ -207,16 +253,31 @@ export class Roads {
       for (const value of ribbon.uvs) bucket.uvs.push(value);
       for (const index of ribbon.indices) bucket.indices.push(index + offset);
 
+      const wayIndex = names.length;
+      names.push(way.name);
+      classes.push(way.roadClass);
+      for (let i = 1; i < points.length; i++) {
+        segments.push({
+          ax: points[i - 1].x,
+          az: points[i - 1].z,
+          ay: points[i - 1].y,
+          bx: points[i].x,
+          bz: points[i].z,
+          by: points[i].y,
+          halfWidth: width / 2,
+          wayIndex,
+        });
+      }
+
       const spacing = LAMP_SPACING[way.roadClass];
       if (spacing !== null || way.lit) {
-        const sites = lampSites(points, spacing ?? 40, ROAD_WIDTH[way.roadClass] / 2 + 1.2);
-        for (const site of sites) {
-          const matrix = new Matrix4();
-          matrix.setPosition(site.x + site.offsetX, site.y, site.z + site.offsetZ);
-          lampMatrices.push(matrix);
+        for (const site of lampSites(points, spacing ?? 40, width / 2 + 1.2)) {
+          lampPositions.push({ x: site.x + site.offsetX, y: site.y, z: site.z + site.offsetZ });
         }
       }
     }
+
+    if (segments.length === 0) return null;
 
     for (const bucket of byClass.values()) {
       const geometry = new BufferGeometry();
@@ -227,21 +288,18 @@ export class Roads {
       geometry.computeBoundingSphere();
       const mesh = new Mesh(geometry, this.roadMaterial);
       mesh.renderOrder = 20;
-      cell.group.add(mesh);
+      group.add(mesh);
     }
 
-    if (lampMatrices.length > 0) {
-      const posts = new InstancedMesh(this.postGeometry, this.lampPostMaterial, lampMatrices.length);
-      const bulbs = new InstancedMesh(this.bulbGeometry, this.lampGlowMaterial, lampMatrices.length);
-      lampMatrices.forEach((matrix, i) => {
-        const x = matrix.elements[12];
-        const y = matrix.elements[13];
-        const z = matrix.elements[14];
-        this.dummy.position.set(x, y + LAMP_HEIGHT / 2, z);
+    if (lampPositions.length > 0) {
+      const posts = new InstancedMesh(this.postGeometry, this.lampPostMaterial, lampPositions.length);
+      const bulbs = new InstancedMesh(this.bulbGeometry, this.lampGlowMaterial, lampPositions.length);
+      lampPositions.forEach((site, i) => {
         this.dummy.rotation.set(0, 0, 0);
+        this.dummy.position.set(site.x, site.y + LAMP_HEIGHT / 2, site.z);
         this.dummy.updateMatrix();
         posts.setMatrixAt(i, this.dummy.matrix);
-        this.dummy.position.set(x, y + LAMP_HEIGHT, z);
+        this.dummy.position.set(site.x, site.y + LAMP_HEIGHT, site.z);
         this.dummy.updateMatrix();
         bulbs.setMatrixAt(i, this.dummy.matrix);
       });
@@ -249,60 +307,62 @@ export class Roads {
       bulbs.instanceMatrix.needsUpdate = true;
       posts.frustumCulled = false;
       bulbs.frustumCulled = false;
-      cell.group.add(posts);
-      cell.group.add(bulbs);
+      group.add(posts, bulbs);
     }
 
-    cell.builtScale = anchor.scale;
-    this.position(cell, anchor);
+    return { group, data: indexSegments(segments, names, classes) };
   }
+}
 
-  private position(cell: Cell, anchor: Anchor): void {
-    const world = anchor.worldFromMercator(cell.merc.x, cell.merc.y);
-    cell.group.position.set(world.x, 0, world.z);
-    const scale = anchor.scale / cell.builtScale;
-    cell.group.scale.set(scale, 1, scale);
+/** Buckets segments into a uniform grid covering the cell. */
+function indexSegments(
+  segments: Segment[],
+  names: Array<string | null>,
+  classes: RoadClass[],
+): CellIndex {
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  for (const segment of segments) {
+    minX = Math.min(minX, segment.ax, segment.bx);
+    maxX = Math.max(maxX, segment.ax, segment.bx);
+    minZ = Math.min(minZ, segment.az, segment.bz);
+    maxZ = Math.max(maxZ, segment.az, segment.bz);
   }
+  const size = Math.max(maxX - minX, maxZ - minZ, 1) * 1.001;
+  const buckets: number[][] = Array.from({ length: GRID * GRID }, () => []);
 
-  private evict(): void {
-    if (this.cells.size <= MAX_CELLS) return;
-    const sorted = [...this.cells.values()].sort((a, b) => a.lastUsed - b.lastUsed);
-    for (let i = 0; i < this.cells.size - MAX_CELLS; i++) {
-      const cell = sorted[i];
-      if (cell.lastUsed >= this.frame - 1) continue;
-      this.disposeCell(cell);
-      this.cells.delete(cell.key);
+  segments.forEach((segment, index) => {
+    // Insert into every bucket the segment's bounding box touches.
+    const x0 = Math.floor(((Math.min(segment.ax, segment.bx) - minX) / size) * GRID);
+    const x1 = Math.floor(((Math.max(segment.ax, segment.bx) - minX) / size) * GRID);
+    const z0 = Math.floor(((Math.min(segment.az, segment.bz) - minZ) / size) * GRID);
+    const z1 = Math.floor(((Math.max(segment.az, segment.bz) - minZ) / size) * GRID);
+    for (let z = Math.max(0, z0); z <= Math.min(GRID - 1, z1); z++) {
+      for (let x = Math.max(0, x0); x <= Math.min(GRID - 1, x1); x++) {
+        buckets[z * GRID + x].push(index);
+      }
     }
-  }
+  });
 
-  private disposeCell(cell: Cell): void {
-    cell.abort?.abort();
-    this.group.remove(cell.group);
-    cell.group.traverse((child) => {
-      const mesh = child as Mesh;
-      // Materials are shared across cells; only geometry is per-cell.
-      mesh.geometry?.dispose();
-    });
-    cell.group.clear();
-  }
+  return { buckets, segments, names, classes, minX, minZ, size };
+}
 
-  clear(): void {
-    for (const cell of this.cells.values()) this.disposeCell(cell);
-    this.cells.clear();
-  }
-
-  get stats(): { cells: number; ready: number } {
-    let ready = 0;
-    for (const cell of this.cells.values()) if (cell.state === 'ready') ready++;
-    return { cells: this.cells.size, ready };
-  }
-
-  dispose(): void {
-    this.clear();
-    this.roadMaterial.dispose();
-    this.lampPostMaterial.dispose();
-    this.lampGlowMaterial.dispose();
-    this.postGeometry.dispose();
-    this.bulbGeometry.dispose();
-  }
+/** Perpendicular distance to a segment, and how far along it the foot lies. */
+function distanceToSegment(
+  x: number,
+  z: number,
+  segment: Segment,
+): { distance: number; t: number } {
+  const dx = segment.bx - segment.ax;
+  const dz = segment.bz - segment.az;
+  const lengthSquared = dx * dx + dz * dz;
+  const t =
+    lengthSquared > 0
+      ? Math.max(0, Math.min(1, ((x - segment.ax) * dx + (z - segment.az) * dz) / lengthSquared))
+      : 0;
+  const px = segment.ax + dx * t;
+  const pz = segment.az + dz * t;
+  return { distance: Math.hypot(x - px, z - pz), t };
 }

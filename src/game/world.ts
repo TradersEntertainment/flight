@@ -23,7 +23,8 @@ import { resolveProvider } from '../world/imagery/providers';
 import { Sky, type TimeOfDay } from '../world/sky';
 import { Ocean } from '../world/water';
 import { PostProcessing } from '../world/post';
-import { Roads } from '../world/roads';
+import { Roads, type RoadSurface } from '../world/roads';
+import { Buildings } from '../world/buildings';
 import { quality, type Settings } from '../core/settings';
 
 export interface WorldOptions {
@@ -44,6 +45,7 @@ export class World {
   readonly ocean: Ocean;
   readonly uniforms: TerrainUniforms;
   readonly roads: Roads;
+  readonly buildings: Buildings;
   private post: PostProcessing | null = null;
   private readonly fetcher: TileFetcher;
   private settings: Settings;
@@ -100,6 +102,9 @@ export class World {
     this.roads = new Roads((x, z) => this.heightAt(x, z), { enabled: q.vectors });
     this.scene.add(this.roads.group);
 
+    this.buildings = new Buildings((x, z) => this.heightAt(x, z), q.vectors);
+    this.scene.add(this.buildings.group);
+
     this.setupPost(q.postFx, q.bloom);
     window.addEventListener('resize', this.onResize);
     this.warmUpAt(opts.spawn.lon, opts.spawn.lat);
@@ -152,6 +157,7 @@ export class World {
     this.ocean.setDetail(q.waterDetail);
     this.elevation.budget = Math.round(q.tileBudget * 0.8);
     this.roads.setEnabled(q.vectors);
+    this.buildings.setEnabled(q.vectors);
     this.setupPost(q.postFx, q.bloom);
   }
 
@@ -163,6 +169,11 @@ export class World {
   heightAt(x: number, z: number): number {
     const ll = this.anchor.lonLatFromWorld(x, z);
     return this.elevation.sample(ll.lon, ll.lat);
+  }
+
+  /** The road under a world position, if the vehicle is on one. */
+  roadSurfaceAt(x: number, z: number): RoadSurface | null {
+    return this.roads.surfaceAt(x, z);
   }
 
   isWaterAt(x: number, z: number): boolean {
@@ -211,9 +222,13 @@ export class World {
     const ll = this.lonLatOf(this.camera.position);
     this.elevation.ensureAt(ll.lon, ll.lat, 15, -50);
     this.roads.setNight(this.sky.nightAmount);
-    // Roads are only worth streaming near the ground; from altitude they are
+    this.buildings.setNight(this.sky.nightAmount);
+    // Vector data is only worth streaming near the ground; from altitude it is
     // invisible anyway and the requests would be wasted.
-    if (this.uniforms.uCameraHeight.value < 2500) this.roads.update(this.anchor, ll.lon, ll.lat);
+    if (this.uniforms.uCameraHeight.value < 2500) {
+      this.roads.update(this.anchor, ll.lon, ll.lat);
+      this.buildings.update(this.anchor, ll.lon, ll.lat);
+    }
   }
 
   render(dt: number): void {
@@ -225,7 +240,9 @@ export class World {
   get attribution(): string {
     const parts = ['Terrain: Mapzen / AWS Open Data'];
     if (this.textures.attribution) parts.unshift(this.textures.attribution);
-    if (this.roads.hasData) parts.push('Yollar © OpenStreetMap katkıcıları');
+    if (this.roads.hasData || this.buildings.hasData) {
+      parts.push('Yollar ve binalar © OpenStreetMap katkıcıları');
+    }
     return parts.join(' · ');
   }
 
@@ -237,6 +254,7 @@ export class World {
     this.sky.dispose();
     this.ocean.dispose();
     this.roads.dispose();
+    this.buildings.dispose();
     this.post?.dispose();
     this.renderer.dispose();
   }

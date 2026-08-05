@@ -54,8 +54,17 @@ araziyi dört nokta örneklemesiyle takip eder; el freniyle yanal tutuş düşer
 Gemi, şaderin çizdiği Gerstner dalgalarına gövdesini oturtur — CPU ve GPU aynı dalga tablosunu
 kullanır.
 
-**Gece.** Tweet'teki NFS Carbon havası: bloom, ay ışığı tonlaması, gerçek far ışıkları,
-OpenStreetMap'ten akıtılan yollar ve boyunca dizilen sokak lambaları.
+**Yollar.** OpenStreetMap yolları oyuncunun çevresinde hücre hücre akıtılır, araziye serilir ve
+**sürülebilir**: araba asfaltta daha çok tutunur, daha az yuvarlanma direnci görür ve daha yüksek
+hıza çıkar. Yol profili düzleştirildiği için 30 m'lik yükseklik ızgarasının tümseklerini
+almazsınız. Üzerinde olduğunuz yolun adı ekranda görünür.
+
+**Binalar.** OSM bina alanları araziye oturtulup yükseltilir (`height` / `building:levels`
+etiketlerinden, yoksa bina tipine göre). Pencereler geometri değil şader deseni: gece bir kasaba
+binlerce yanan pencere olarak okunur, maliyeti birkaç komut.
+
+**Gece.** Tweet'teki NFS Carbon havası: bloom, ay ışığı tonlaması, gerçek far ışıkları, sokak
+lambaları ve yanan pencereler.
 
 ## Veri kaynakları
 
@@ -63,7 +72,7 @@ OpenStreetMap'ten akıtılan yollar ve boyunca dizilen sokak lambaları.
 |---|---|---|
 | Yükseklik | AWS Terrain Tiles (Terrarium) | Ücretsiz, anahtarsız, z15'e kadar |
 | Uydu görüntüsü | Esri World Imagery / Sentinel-2 cloudless / MapTiler | Opsiyonel; `?maptiler=ANAHTAR` |
-| Yollar, lambalar | OpenStreetMap (Overpass) | Opsiyonel; erişilemezse atlanır |
+| Yollar, lambalar, binalar | OpenStreetMap (Overpass) | Opsiyonel; erişilemezse atlanır |
 | Yer arama | Yerleşik liste + Nominatim | Yerleşik liste çevrimdışı çalışır |
 
 Attribution ekranda sürekli görünür. Lisans ayrıntıları: [LICENSES.md](./LICENSES.md).

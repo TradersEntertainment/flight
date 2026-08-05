@@ -31,14 +31,31 @@ telafi etmek için şaderde mesafeyle sönümlenen prosedürel detay var.
 Araba modunda pratik sonucu: tepeler ve virajlar gerçek, ama yol yatağı gerçek yol yüzeyi değil —
 arazi yüzeyidir. OSM yol şeritleri bunun üzerine 45 cm yükseltilerek çizilir.
 
-## Yollar ve lambalar Overpass'a bağlı
+## Yollar, lambalar ve binalar Overpass'a bağlı
 
-Yol geometrisi genel Overpass sunucularından çekilir. Sunucu yoğunsa, engelliyse ya da çevrimdışıysa
-o hücre boş kalır ve oyun yollarsız devam eder. Bu kasıtlı: yollar dekoratiftir, oynanış onlara
-bağlı değildir.
+Yol ve bina geometrisi genel Overpass sunucularından çekilir. Sunucu yoğunsa, engelliyse ya da
+çevrimdışıysa o hücre boş kalır ve oyun bu katmanlar olmadan devam eder — hiçbiri oynanış için
+zorunlu değildir. Her iki katman tek bir istek sırasından geçer (aynı anda tek sorgu), çünkü
+Overpass gönüllü işletilen paylaşımlı bir servistir.
 
 Yoğun kullanım için kendi Overpass instance'ınızı ya da önceden hazırlanmış bir vektör tile
 setini koymak gerekir.
+
+**Bu depoda canlı Overpass yolu doğrulanamadı:** geliştirme ortamının ağ politikası tüm Overpass
+sunucularını engelliyor. Ayrıştırma, üçgenleme, şerit ve lamba geometrisi birim testlerle;
+render + sürüş hattı ise `scripts/osmPreview.mjs` ile sentetik veri enjekte edilerek doğrulandı.
+Ağ isteğinin kendisi gerçek bir sunucuya karşı denenmedi.
+
+## Binaların sınırları
+
+- **Sadece kapalı yollar (way).** Avlulu binalar ve bazı büyük kompleksler OSM'de multipolygon
+  ilişkisi olarak tutulur; delik destekli üçgenleme gerektirdiği için bunlar çizilmez.
+- **Çatılar düz.** `roof:shape` etiketi kullanılmaz; kırma/beşik çatı yoktur.
+- **İç mekân yok, kapı/giriş yok.** Binalar katı kütlelerdir.
+- **Çarpışma yok.** Araba binaların içinden geçer; çarpışma yalnızca zeminledir.
+- **Yükseklik çoğu zaman tahmindir.** OSM'de `height` ya da `building:levels` etiketi olan bina
+  azınlıktadır; kalanı bina tipine göre makul bir varsayılan alır (ev 6.5 m, apartman 16 m,
+  ofis 22 m gibi).
 
 ## Uydu görüntüsü sağlayıcıları
 

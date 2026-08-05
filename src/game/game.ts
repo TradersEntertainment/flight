@@ -15,7 +15,7 @@ import { DEFAULT_SPAWN, readSpawnFromUrl, writeUrlState, type UrlState } from '.
 import { VehicleManager } from '../vehicles/manager';
 import type { VehicleKind } from '../vehicles/types';
 import { ChaseCamera } from '../camera/chase';
-import { Attribution, Hud, PlaceBadge, Toasts } from '../ui/hud';
+import { Attribution, Hud, PlaceBadge, RoadLabel, Toasts } from '../ui/hud';
 import { Minimap } from '../ui/minimap';
 import { SearchPanel, type SearchResult } from '../ui/search';
 import { HelpPanel, SettingsPanel } from '../ui/menu';
@@ -44,6 +44,7 @@ export class Game {
   private readonly help: HelpPanel;
   private readonly badge: PlaceBadge;
   private readonly attribution: Attribution;
+  private readonly roadLabel: RoadLabel;
   private readonly touch: TouchControls | null;
   private readonly raceHud = document.createElement('div');
   private readonly countdown = document.createElement('div');
@@ -79,6 +80,7 @@ export class Game {
     this.settingsPanel = new SettingsPanel(uiRoot, this.settings);
     this.help = new HelpPanel(uiRoot);
     this.attribution = new Attribution(uiRoot);
+    this.roadLabel = new RoadLabel(uiRoot);
     this.touch = hasTouch() ? new TouchControls(uiRoot, this.input) : null;
 
     this.raceHud.className = 'race-hud panel';
@@ -216,7 +218,9 @@ export class Game {
 
   private updateUi(dt: number): void {
     const state = this.vehicles.active.getState();
-    this.hud.update(this.vehicles.active.getHud());
+    const reading = this.vehicles.active.getHud();
+    this.hud.update(reading);
+    this.roadLabel.set(reading.surface);
 
     if (this.settings.showMinimap) {
       this.minimap.setNight(this.world.sky.nightAmount);
