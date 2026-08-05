@@ -207,8 +207,14 @@ export class CarVehicle implements Vehicle {
 
     const newGround = height(this.position.x, this.position.z);
     const target = newGround + cfg.rideHeight;
-    if (this.position.y < target + 0.6) {
-      // Suspension: ease onto the surface instead of snapping to it.
+    if (this.position.y < target) {
+      // Wheels never sink into the road. Easing down is fine — that reads as
+      // suspension — but easing *up* leaves the car buried when the ground
+      // climbs faster than the spring can follow, which is exactly what
+      // happens driving uphill at speed.
+      this.position.y = target;
+      this.velocity.y = 0;
+    } else if (this.position.y < target + 0.6) {
       this.position.y += (target - this.position.y) * Math.min(1, dt * 12);
       this.velocity.y = 0;
     }

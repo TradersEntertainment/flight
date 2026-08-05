@@ -165,10 +165,17 @@ export class World {
     return this.settings;
   }
 
-  /** Ground height in metres at a world position. */
+  /**
+   * Ground height in metres at a world position.
+   *
+   * Sampled at the level of detail the terrain is currently drawing there, so
+   * vehicles ride the surface the player sees rather than a finer one the
+   * renderer has not caught up with.
+   */
   heightAt(x: number, z: number): number {
     const ll = this.anchor.lonLatFromWorld(x, z);
-    return this.elevation.sample(ll.lon, ll.lat);
+    const surface = this.terrain.surfaceHeightAt(ll.lon, ll.lat);
+    return surface ?? this.elevation.sample(ll.lon, ll.lat);
   }
 
   /** The road under a world position, if the vehicle is on one. */

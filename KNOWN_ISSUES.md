@@ -21,6 +21,17 @@ Ege, Marmara, Akdeniz, Atlantik hepsi 0.0). Bu yüzden su testi "yükseklik ≤ 
 için ayrı bir batimetri seti (GEBCO) eklemek. Plan dışında bırakıldı: her ikisi de kendi tile
 pipeline'ını gerektiriyor.
 
+## Araç, gördüğü yüzeyde durur — o yüzey her zaman en ince veri değildir
+
+Araçların zemin yüksekliği, arazinin **o an çizdiği** üçgenden hesaplanır (`Terrain.surfaceHeightAt`),
+en ince yükseklik verisinden değil. Sebebi: LOD henüz yetişmemişken çizilen yüzey bir-iki kademe
+kaba olur ve ince veriye oturtulan araç, oyuncunun açıkça gördüğü sırtın içinde kalır — dağda
+1.9 m'ye kadar ölçüldü.
+
+Bunun kabul edilen sonucu: arazi kabayken tümsekler yumuşaktır, LOD inceldikçe zemin altınızda
+biraz değişir. Doğru olan takas bu; alternatifi aracın yere gömülmüş görünmesi.
+`scripts/sinkCheck.mjs` bu farkı ölçer (`sank` değeri pozitifse gömülme var).
+
 ## Arazi çözünürlüğü z15'te biter
 
 Terrarium verisi z15'e kadar var; bu ekvatorda ~30 m, Türkiye enlemlerinde ~23 m örnek aralığı

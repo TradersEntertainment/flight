@@ -22,7 +22,8 @@ import {
   Vector3,
   type PerspectiveCamera,
 } from 'three';
-import { mercatorXToLon, mercatorYToLat } from '../../geo/mercator';
+import { latToMercatorY, lonToMercatorX, mercatorXToLon, mercatorYToLat } from '../../geo/mercator';
+import { latToTileY, lonToTileX } from '../../geo/tilemath';
 import {
   idKey,
   tileAt,
@@ -97,6 +98,9 @@ export class Terrain {
   private frame = 0;
   private anchorEpoch = -1;
   private drawn: QuadNode[] = [];
+  /** Tiles currently on screen, keyed numerically for cheap lookup. */
+  private readonly drawnKeys = new Set<number>();
+  private drawnMaxZoom = ROOT_ZOOM;
   stats: TerrainStats = { drawn: 0, meshes: 0, queued: 0, maxZoom: ROOT_ZOOM };
 
   constructor(
@@ -147,13 +151,16 @@ export class Terrain {
       if (node.mesh) node.mesh.visible = false;
     }
     let maxZoomDrawn = ROOT_ZOOM;
+    this.drawnKeys.clear();
     for (const node of this.drawn) {
       if (!node.mesh) continue;
       node.mesh.visible = true;
       node.lastUsed = this.frame;
       maxZoomDrawn = Math.max(maxZoomDrawn, node.id.z);
+      this.drawnKeys.add(drawnKey(node.id.z, node.id.x, node.id.y));
       this.applyTexture(node);
     }
+    this.drawnMaxZoom = maxZoomDrawn;
 
     this.processBuildQueue(anchor);
     this.evict();
@@ -164,6 +171,74 @@ export class Terrain {
       queued: this.buildQueue.length,
       maxZoom: maxZoomDrawn,
     };
+  }
+
+  /**
+   * Zoom of the tile currently drawn at a point, or null when nothing covers it.
+   *
+   * Vehicles use this to sample the ground at the same level of detail as the
+   * surface they can see. Sampling at full detail instead looks fine when the
+   * terrain has caught up, but at speed — or on a slow machine, where the mesh
+   * build queue lags — the drawn surface is a level or two coarser and the
+   * vehicle sinks into a ridge that, to the player, is plainly there.
+   */
+  drawnZoomAt(lon: number, lat: number): number | null {
+    const top = this.drawnMaxZoom;
+    let x = Math.floor(lonToTileX(lon, top));
+    let y = Math.floor(latToTileY(lat, top));
+    for (let z = top; z >= ROOT_ZOOM; z--) {
+      if (this.drawnKeys.has(drawnKey(z, x, y))) return z;
+      x >>= 1;
+      y >>= 1;
+    }
+    return null;
+  }
+
+  /**
+   * Height of the drawn terrain surface at a point.
+   *
+   * This reconstructs the exact triangle the renderer drew — same grid, same
+   * vertex heights, same diagonal — instead of sampling the underlying
+   * elevation field. The two differ by metres on a ridge whenever the drawn
+   * tile is coarse, and a vehicle placed on the field then stands inside a
+   * hill the player can plainly see. Returns null where nothing is drawn.
+   */
+  surfaceHeightAt(lon: number, lat: number): number | null {
+    const z = this.drawnZoomAt(lon, lat);
+    if (z === null) return null;
+    const id = tileAt(lon, lat, z);
+    const bounds = tileBounds(id);
+    const span = tileSpan(z);
+    const n = this.options.meshSegments;
+    const elevationZoom = this.elevationIdFor(id).z;
+
+    // Fractional grid coordinates within the tile: u east, v south.
+    const u = ((lonToMercatorX(lon) - bounds.minX) / span) * n;
+    const v = ((bounds.maxY - latToMercatorY(lat)) / span) * n;
+    const i = Math.max(0, Math.min(n - 1, Math.floor(u)));
+    const j = Math.max(0, Math.min(n - 1, Math.floor(v)));
+    const fu = Math.max(0, Math.min(1, u - i));
+    const fv = Math.max(0, Math.min(1, v - j));
+
+    const vertex = (gi: number, gj: number): number => {
+      const mx = bounds.minX + (gi / n) * span;
+      const my = bounds.maxY - (gj / n) * span;
+      const height = this.elevation.sampleAtZoomOrCoarser(
+        mercatorXToLon(mx),
+        mercatorYToLat(my),
+        elevationZoom,
+      );
+      // The mesh sinks the sea bed; match it, or the shoreline disagrees.
+      return height > 0 ? height : height - SEA_BED_DROP;
+    };
+
+    // Each quad is split along the anti-diagonal, from (i+1, j) to (i, j+1).
+    if (fu + fv <= 1) {
+      const h00 = vertex(i, j);
+      return h00 + (vertex(i + 1, j) - h00) * fu + (vertex(i, j + 1) - h00) * fv;
+    }
+    const h11 = vertex(i + 1, j + 1);
+    return h11 + (vertex(i, j + 1) - h11) * (1 - fu) + (vertex(i + 1, j) - h11) * (1 - fv);
   }
 
   /** Root tiles are a small window around the camera at a fixed low zoom. */
@@ -577,6 +652,11 @@ export class Terrain {
     this.roots.clear();
     this.meshNodes.clear();
   }
+}
+
+/** Numeric tile key; render zoom never exceeds 17, so x and y fit in 17 bits. */
+function drawnKey(z: number, x: number, y: number): number {
+  return (z * 131072 + y) * 131072 + x;
 }
 
 function clampIndex(i: number, n: number): number {
