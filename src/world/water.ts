@@ -120,6 +120,7 @@ const VERTEX_HEADER = /* glsl */ `
   uniform vec3 uOrigin;
   varying vec3 vWaterWorld;
   varying float vCrest;
+  varying vec3 vWaterNormal;
   vec3 gWaveDisp = vec3(0.0);
   vec3 gWaveNormal = vec3(0.0, 1.0, 0.0);
   float gCrest = 0.0;
@@ -143,6 +144,7 @@ const VERTEX_PATCH = /* glsl */ `
   #include <begin_vertex>
   transformed += gWaveDisp;
   vWaterWorld = transformed + uOrigin;
+  vWaterNormal = gWaveNormal;
   vCrest = gCrest;
 `;
 
@@ -150,6 +152,15 @@ const FRAGMENT_PATCH = /* glsl */ `
   #include <color_fragment>
   float crest = vCrest * 0.5 + 0.5;
   diffuseColor.rgb = mix(uDeepColor, uShallowColor, crest * 0.45);
+
+  // Fresnel sky reflection. Without it the sea is only as bright as the
+  // specular highlight, which leaves it black under a sunset or a night sky —
+  // water reflects the sky far more than it reflects the sun.
+  vec3 viewDir = normalize(cameraPosition - vWaterWorld);
+  float facing = clamp(dot(normalize(vWaterNormal), viewDir), 0.0, 1.0);
+  float fresnel = pow(1.0 - facing, 4.0);
+  diffuseColor.rgb = mix(diffuseColor.rgb, uSkyColor, clamp(fresnel * 0.92, 0.0, 0.88));
+
   // Foam on the sharpest crests.
   float foam = smoothstep(0.72, 0.98, crest);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85, 0.9, 0.95), foam * uFoam);
@@ -170,6 +181,7 @@ export class Ocean {
   private readonly uDeep: IUniform<Color> = { value: new Color(0x0b2438) };
   private readonly uShallow: IUniform<Color> = { value: new Color(0x1d5a7a) };
   private readonly uFoam: IUniform<number> = { value: 1 };
+  private readonly uSky: IUniform<Color> = { value: new Color(0x9fc0e8) };
   private options: OceanOptions;
 
   constructor(options: OceanOptions) {
@@ -187,6 +199,7 @@ export class Ocean {
       shader.uniforms.uDeepColor = this.uDeep;
       shader.uniforms.uShallowColor = this.uShallow;
       shader.uniforms.uFoam = this.uFoam;
+      shader.uniforms.uSkyColor = this.uSky;
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>\n${VERTEX_HEADER}`)
         .replace('#include <beginnormal_vertex>', NORMAL_PATCH)
@@ -194,7 +207,7 @@ export class Ocean {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          `#include <common>\n uniform vec3 uDeepColor;\n uniform vec3 uShallowColor;\n uniform float uFoam;\n varying vec3 vWaterWorld;\n varying float vCrest;`,
+          `#include <common>\n uniform vec3 uDeepColor;\n uniform vec3 uShallowColor;\n uniform float uFoam;\n uniform vec3 uSkyColor;\n varying vec3 vWaterWorld;\n varying vec3 vWaterNormal;\n varying float vCrest;`,
         )
         .replace('#include <color_fragment>', FRAGMENT_PATCH);
     };
@@ -212,6 +225,11 @@ export class Ocean {
     this.mesh.renderOrder = 1;
     this.group.add(this.mesh);
     this.group.name = 'ocean';
+  }
+
+  /** The colour the surface reflects; driven by the sky each frame. */
+  setSkyColour(colour: Color): void {
+    this.uSky.value.copy(colour);
   }
 
   setNight(night: number): void {

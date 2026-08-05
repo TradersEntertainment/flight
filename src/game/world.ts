@@ -199,6 +199,7 @@ export class World {
     this.sky.update(dt, this.camera.position);
     this.ocean.update(this.time, this.camera.position);
     this.ocean.setNight(this.sky.nightAmount);
+    this.ocean.setSkyColour(this.sky.horizonColour);
     // The stylised fallback has no city lights to pick out.
     this.uniforms.uCityGlow.value = this.textures.usesSatellite ? 1 : 0;
     this.uniforms.uCameraHeight.value = Math.max(

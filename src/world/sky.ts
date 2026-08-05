@@ -260,6 +260,11 @@ export class Sky {
     return this.current.night;
   }
 
+  /** Horizon colour, which is what a flat surface below mostly reflects. */
+  get horizonColour(): Color {
+    return this.current.horizon;
+  }
+
   update(dt: number, cameraPosition: Vector3): void {
     // Ease toward the target so switching time of day is a transition.
     this.elevationDeg += (this.targetElevation - this.elevationDeg) * Math.min(1, dt * 1.8);
