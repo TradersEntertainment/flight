@@ -145,6 +145,47 @@ export function smoothHeights(points: RibbonPoint[], window = 2): void {
   }
 }
 
+/**
+ * Lays a bridge deck between its abutments.
+ *
+ * A bridge is the one road that must not follow the ground: draping the
+ * Bosphorus crossing on the terrain would paint it flat across the water. The
+ * deck runs straight from one end to the other — which is what a span does —
+ * and is then lifted clear of anything that pokes through in between.
+ *
+ * `ground` is the terrain height at each point, in order.
+ */
+export function bridgeDeck(
+  points: RibbonPoint[],
+  ground: number[],
+  clearance: number,
+  minimumOverWater: number,
+): void {
+  if (points.length < 2) return;
+  const start = ground[0];
+  const end = ground[ground.length - 1];
+  const total = polylineLength(points);
+  if (total <= 0) return;
+
+  let travelled = 0;
+  for (let i = 0; i < points.length; i++) {
+    if (i > 0) {
+      travelled += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+    }
+    const t = travelled / total;
+    const deck = start + (end - start) * t;
+    const below = ground[i];
+    // Clearance tapers away at the ends: mid-span the deck must stand clear of
+    // what it crosses, but at the abutments it has to meet the road it joins.
+    const edge = Math.min(1, Math.min(t, 1 - t) / 0.12);
+    points[i].y = Math.max(
+      deck,
+      below + clearance * edge,
+      below <= 0 ? minimumOverWater * edge : -Infinity,
+    );
+  }
+}
+
 /** Total ground length of a polyline, in metres. */
 export function polylineLength(points: RibbonPoint[]): number {
   let total = 0;

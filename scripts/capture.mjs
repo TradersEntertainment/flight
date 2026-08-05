@@ -8,8 +8,10 @@
  *
  *   node scripts/capture.mjs
  */
-const SHOT = new URL('../.shots/', import.meta.url).pathname;
+import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+
+const SHOT = new URL('../.shots/', import.meta.url).pathname;
 mkdirSync(SHOT, { recursive: true });
 const browser = await chromium.launch({
   // Software rendering keeps this runnable on a headless box; on a machine with
@@ -39,7 +41,6 @@ async function shot(url, file, drive) {
   console.log(file, '→', s);
   await page.close();
 }
-await shot('http://127.0.0.1:4173/?tiles=proxy&time=night&veh=car&lat=36.5433&lon=32.0', '1-night-drive.png', 'car');
-await shot('http://127.0.0.1:4173/?tiles=proxy&time=day&lat=36.90&lon=30.71', '2-day-flight.png', 'fly');
-await shot('http://127.0.0.1:4173/?tiles=proxy&time=sunset&veh=boat&lat=41.10&lon=29.06', '3-bosphorus-boat.png', 'boat');
+await shot('http://127.0.0.1:4173/?tiles=proxy&time=dawn&lat=36.90&lon=30.71', '4-dawn-flight.png', 'fly');
+await shot('http://127.0.0.1:4173/?tiles=proxy&time=dawn&veh=boat&lat=41.10&lon=29.06', '5-dawn-boat.png', 'boat');
 await browser.close();

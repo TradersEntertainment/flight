@@ -23,6 +23,7 @@ import {
   MeshStandardMaterial,
   Object3D,
   SphereGeometry,
+  BoxGeometry,
   CylinderGeometry,
 } from 'three';
 import type { Anchor } from '../../geo/anchor';
@@ -35,6 +36,7 @@ import {
   type RoadWay,
 } from './overpass';
 import {
+  bridgeDeck,
   buildRibbon,
   lampSites,
   resamplePolyline,
@@ -52,6 +54,13 @@ const LAMP_HEIGHT = 8.5;
 const RESAMPLE = 12;
 /** Buckets per axis in the per-cell lookup grid. */
 const GRID = 24;
+/** Metres a bridge deck keeps clear of whatever passes under it. */
+const BRIDGE_CLEARANCE = 5;
+/** Lowest a deck may sit over open water, metres above sea level. */
+const BRIDGE_OVER_WATER = 9;
+/** Deck height above the surface below at which piers become visible. */
+const PIER_THRESHOLD = 9;
+const PIER_SPACING = 70;
 
 interface Segment {
   ax: number;
@@ -93,6 +102,9 @@ export class Roads {
   private readonly lampGlowMaterial: MeshBasicMaterial;
   private readonly postGeometry = new CylinderGeometry(0.16, 0.22, LAMP_HEIGHT, 5);
   private readonly bulbGeometry = new SphereGeometry(0.6, 8, 6);
+  /** A unit column, scaled per pier; one geometry for every bridge support. */
+  private readonly pierGeometry = new BoxGeometry(1, 1, 1);
+  private readonly pierMaterial: MeshStandardMaterial;
   private readonly dummy = new Object3D();
 
   constructor(
@@ -118,6 +130,7 @@ export class Roads {
     // Basic material: the bulb is its own light source, so it should not be
     // shaded, and bloom picks it up from the raw colour.
     this.lampGlowMaterial = new MeshBasicMaterial({ color: new Color(0xffd08a) });
+    this.pierMaterial = new MeshStandardMaterial({ color: 0x8d8f94, roughness: 0.9, metalness: 0.05 });
 
     this.streamer = new CellStreamer<RoadWay, CellIndex>({
       name: 'roads',
@@ -215,8 +228,10 @@ export class Roads {
     this.roadMaterial.dispose();
     this.lampPostMaterial.dispose();
     this.lampGlowMaterial.dispose();
+    this.pierMaterial.dispose();
     this.postGeometry.dispose();
     this.bulbGeometry.dispose();
+    this.pierGeometry.dispose();
   }
 
   /** Builds one merged mesh per road class, the lamps, and the lookup grid. */
@@ -224,6 +239,7 @@ export class Roads {
     const group = new Group();
     const byClass = new Map<string, { positions: number[]; uvs: number[]; indices: number[] }>();
     const lampPositions: Array<{ x: number; y: number; z: number }> = [];
+    const piers: Array<{ x: number; z: number; base: number; top: number; width: number }> = [];
     const segments: Segment[] = [];
     const names: Array<string | null> = [];
     const classes: RoadClass[] = [];
@@ -237,12 +253,18 @@ export class Roads {
       // is engineered, so it should not inherit every ripple of the elevation
       // grid it crosses.
       const points = resamplePolyline(raw, RESAMPLE);
-      for (const point of points) {
-        point.y = this.heightAt(point.x + context.centre.x, point.z + context.centre.z) + ROAD_LIFT;
-      }
-      smoothHeights(points, 2);
-
+      const ground = points.map((point) =>
+        this.heightAt(point.x + context.centre.x, point.z + context.centre.z),
+      );
       const width = ROAD_WIDTH[way.roadClass];
+
+      if (way.bridge) {
+        bridgeDeck(points, ground, BRIDGE_CLEARANCE, BRIDGE_OVER_WATER);
+        collectPiers(points, ground, width, piers);
+      } else {
+        for (let i = 0; i < points.length; i++) points[i].y = ground[i] + ROAD_LIFT;
+        smoothHeights(points, 2);
+      }
       const ribbon = buildRibbon(points, width);
       if (!ribbon) continue;
 
@@ -291,6 +313,22 @@ export class Roads {
       group.add(mesh);
     }
 
+    if (piers.length > 0) {
+      const columns = new InstancedMesh(this.pierGeometry, this.pierMaterial, piers.length);
+      piers.forEach((pier, i) => {
+        const height = pier.top - pier.base;
+        this.dummy.position.set(pier.x, pier.base + height / 2, pier.z);
+        this.dummy.rotation.set(0, 0, 0);
+        this.dummy.scale.set(pier.width, height, pier.width);
+        this.dummy.updateMatrix();
+        columns.setMatrixAt(i, this.dummy.matrix);
+      });
+      this.dummy.scale.set(1, 1, 1);
+      columns.instanceMatrix.needsUpdate = true;
+      columns.frustumCulled = false;
+      group.add(columns);
+    }
+
     if (lampPositions.length > 0) {
       const posts = new InstancedMesh(this.postGeometry, this.lampPostMaterial, lampPositions.length);
       const bulbs = new InstancedMesh(this.bulbGeometry, this.lampGlowMaterial, lampPositions.length);
@@ -311,6 +349,37 @@ export class Roads {
     }
 
     return { group, data: indexSegments(segments, names, classes) };
+  }
+}
+
+/**
+ * Places supports under a raised deck.
+ *
+ * Only where the deck actually stands clear of the surface, and spaced by arc
+ * length, so a long water crossing gets a row of piers and a short flyover gets
+ * one or two.
+ */
+function collectPiers(
+  points: RibbonPoint[],
+  ground: number[],
+  width: number,
+  out: Array<{ x: number; z: number; base: number; top: number; width: number }>,
+): void {
+  let sinceLast = PIER_SPACING;
+  for (let i = 1; i < points.length; i++) {
+    sinceLast += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+    if (sinceLast < PIER_SPACING) continue;
+    const clearance = points[i].y - ground[i];
+    if (clearance < PIER_THRESHOLD) continue;
+    sinceLast = 0;
+    out.push({
+      x: points[i].x,
+      z: points[i].z,
+      // Sink the foot so a pier standing in water is not a floating box.
+      base: ground[i] - 3,
+      top: points[i].y,
+      width: Math.max(2.2, width * 0.22),
+    });
   }
 }
 

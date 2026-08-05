@@ -57,6 +57,12 @@ sunucularını engelliyor. Ayrıştırma, üçgenleme, şerit ve lamba geometris
 render + sürüş hattı ise `scripts/osmPreview.mjs` ile sentetik veri enjekte edilerek doğrulandı.
 Ağ isteğinin kendisi gerçek bir sunucuya karşı denenmedi.
 
+## Köprüler basit tabliyedir
+
+`bridge` etiketli yollar iki ucu arasında düz bir tabliye olarak kurulur ve yeterince yüksekse
+altına ayak konur. Askı halatları, kule direkleri ve kemerler yoktur — Boğaz Köprüsü'nden
+geçebilirsiniz ama uzaktan bakınca asma köprü gibi görünmez. Tüneller hiç çizilmez.
+
 ## Binaların sınırları
 
 - **Sadece kapalı yollar (way).** Avlulu binalar ve bazı büyük kompleksler OSM'de multipolygon
@@ -64,9 +70,10 @@ Ağ isteğinin kendisi gerçek bir sunucuya karşı denenmedi.
 - **Çatılar düz.** `roof:shape` etiketi kullanılmaz; kırma/beşik çatı yoktur.
 - **İç mekân yok, kapı/giriş yok.** Binalar katı kütlelerdir.
 - **Çarpışma yok.** Araba binaların içinden geçer; çarpışma yalnızca zeminledir.
-- **Yükseklik çoğu zaman tahmindir.** OSM'de `height` ya da `building:levels` etiketi olan bina
-  azınlıktadır; kalanı bina tipine göre makul bir varsayılan alır (ev 6.5 m, apartman 16 m,
-  ofis 22 m gibi).
+- **Yükseklik çoğu zaman tahmindir.** `height` etiketi varsa aynen kullanılır; yoksa
+  `building:levels` bina tipine göre kat yüksekliğiyle çarpılır (ofis 3.9 m, konut 3.1 m,
+  sanayi 5.5 m) ve zemin kat biraz daha yüksek sayılır. OSM'de `height` ya da `building:levels` etiketi olan bina
+  Hiçbiri yoksa bina tipine göre makul bir varsayılan alır (ev 6.5 m, apartman 16 m, ofis 22 m).
 
 ## Uydu görüntüsü sağlayıcıları
 

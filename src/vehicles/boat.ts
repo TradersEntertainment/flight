@@ -7,7 +7,7 @@ import { Euler, Group, Vector3, type MeshBasicMaterial } from 'three';
 import { createBoat, type BoatModel } from './models';
 import { approach, fitHull, type HullShape } from './buoyancy';
 import { waveHeight } from '../world/water';
-import type { CameraTarget, HudReading, Vehicle, VehicleState } from './types';
+import type { CameraTarget, HudReading, Vehicle, VehicleAudio, VehicleState } from './types';
 import type { Input } from '../core/input';
 import type { World } from '../game/world';
 
@@ -175,6 +175,17 @@ export class BoatVehicle implements Vehicle {
       throttle: Math.min(1, Math.abs(this.speed) / this.config.topSpeed),
       heading: this.heading,
       warning: this.aground ? 'KARAYA OTURDU' : null,
+    };
+  }
+
+  getAudio(): VehicleAudio {
+    return {
+      speed: Math.abs(this.speed),
+      throttle: Math.min(1, Math.abs(this.speed) / this.config.topSpeed),
+      airborne: false,
+      // The hull noise is water, not grit.
+      roughness: 0.35,
+      slip: 0,
     };
   }
 

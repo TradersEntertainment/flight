@@ -10,7 +10,7 @@
 
 import { Euler, Group, Quaternion, Vector3, type MeshStandardMaterial } from 'three';
 import { createCar, type CarModel } from './models';
-import type { CameraTarget, HudReading, Vehicle, VehicleState } from './types';
+import type { CameraTarget, HudReading, Vehicle, VehicleAudio, VehicleState } from './types';
 import type { RoadSurface } from '../world/roads';
 import type { Input } from '../core/input';
 import type { World } from '../game/world';
@@ -292,6 +292,17 @@ export class CarVehicle implements Vehicle {
       heading: this.heading,
       warning: this.drift > 0.55 ? 'DRIFT' : null,
       surface: this.road?.name ?? (this.road ? 'yol' : null),
+    };
+  }
+
+  getAudio(): VehicleAudio {
+    return {
+      speed: this.velocity.length(),
+      throttle: Math.min(1, this.velocity.length() / this.config.topSpeed),
+      airborne: this.airborne,
+      // Tarmac hisses; open ground rumbles.
+      roughness: this.road ? 0.15 : 0.8,
+      slip: this.drift,
     };
   }
 

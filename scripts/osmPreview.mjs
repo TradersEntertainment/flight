@@ -76,6 +76,12 @@ const injected = await page.evaluate(({ lon, lat }) => {
     }
   }
 
+  // A crossing: banks either side, open water between, tagged as a bridge.
+  const bridge = [];
+  for (let m = -700; m <= 700; m += 50) bridge.push({ lon: lon + m * dLon, lat: lat + 260 * dLat });
+  ways.push({ id: id++, name: 'Boğaz Köprüsü', roadClass: 'motorway', lit: true, bridge: true, layer: 1, points: bridge });
+
+  for (const w of ways) if (w.bridge === undefined) { w.bridge = false; w.layer = 0; }
   world.roads.ingest(lon, lat, ways, world.anchor);
   world.buildings.ingest(lon, lat, buildings, world.anchor);
   return { ways: ways.length, buildings: buildings.length };

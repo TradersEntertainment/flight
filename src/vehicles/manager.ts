@@ -91,6 +91,11 @@ export class VehicleManager {
     return this.activeKind;
   }
 
+  /** A vehicle by kind, active or not. */
+  get(kind: VehicleKind): Vehicle {
+    return this.vehicles[kind];
+  }
+
   /** Places the starting vehicle. */
   start(kind: VehicleKind, state: VehicleState): void {
     this.activeKind = kind;

@@ -104,7 +104,7 @@ export class SettingsPanel {
     body.append(
       field('Grafik kalitesi', quality),
       field('Uydu görüntüsü', imagery),
-      field('Uçakta dikey ekseni ters çevir', invert),
+      field('Uçakta ↑/↓ ters (uçuş simülatörü tarzı)', invert),
       field('Minimap', minimap),
       field('Ses', audio),
     );
@@ -135,7 +135,7 @@ function checkbox(value: boolean, onChange: (value: boolean) => void): HTMLInput
 const KEYS: Array<[string, string]> = [
   ['W / S', 'Gaz — uçakta motor gücü, arabada gaz/fren, gemide ileri/geri'],
   ['A / D', 'Uçakta yatış (roll), arabada direksiyon, gemide dümen'],
-  ['↑ / ↓', 'Uçakta burun aşağı/yukarı'],
+  ['↑ / ↓', 'Uçakta tırmanış / alçalma'],
   ['Q / E', 'Uçakta yön dümeni (yaw)'],
   ['Boşluk', 'Arabada el freni (drift), uçakta tekerlek freni, gemide demir'],
   ['1 / 2 / 3', 'Uçak / araba / gemi — uygun zemin otomatik bulunur'],
@@ -143,7 +143,7 @@ const KEYS: Array<[string, string]> = [
   ['R', 'Sıfırla — son güvenli konuma dön'],
   ['T', 'Dünyada yer ara ve ışınlan'],
   ['G', 'Yarış: rotayı başlat / bitir'],
-  ['N', 'Gündüz → gün batımı → gece'],
+  ['N', 'Sabah → gündüz → gün batımı → gece'],
   ['H', 'Bu yardım ekranı'],
   ['Esc', 'Ayarlar'],
 ];
@@ -168,9 +168,10 @@ export class HelpPanel {
     const tip = document.createElement('p');
     tip.style.cssText = 'color:var(--dim);font-size:.8rem;line-height:1.6;margin-top:1.2rem';
     tip.innerHTML =
-      'Uçakta kalkış: gazı <b>W</b> ile açın, hız 120 km/s civarına gelince <b>↓</b> ile ' +
-      'burnu kaldırın. Dönüş için önce <b>A/D</b> ile yatın, sonra burnu çekin — uçak ' +
-      'dönüşü kendisi tamamlar.<br>Bulunduğunuz yerin bağlantısı adres çubuğunda: ' +
+      'Uçakta kalkış: gazı <b>W</b> ile açın, hız 130 km/s civarına gelince <b>↑</b> ile ' +
+      'tırmanışa geçin. Uçak kendini toparlar: tuşu bıraktığınızda kanatlar düzelir, ' +
+      'burun da aşırı dikleşmez. Dönüş için <b>A/D</b> ile yatın, sonra <b>↑</b> ile ' +
+      'çekin — dönüşü uçak tamamlar.<br>Bulunduğunuz yerin bağlantısı adres çubuğunda: ' +
       'kopyalayıp paylaşınca aynı noktada açılır.';
     this.modal.body.appendChild(tip);
   }

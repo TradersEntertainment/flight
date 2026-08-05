@@ -6,7 +6,13 @@ import {
   parseOverpass,
   type OverpassResponse,
 } from '../src/world/roads/overpass';
-import { buildRibbon, lampSites, polylineLength, type RibbonPoint } from '../src/world/roads/ribbon';
+import {
+  bridgeDeck,
+  buildRibbon,
+  lampSites,
+  polylineLength,
+  type RibbonPoint,
+} from '../src/world/roads/ribbon';
 
 /** A trimmed Overpass response, in the shape the real service returns. */
 const RESPONSE: OverpassResponse = {
@@ -203,5 +209,67 @@ describe('street lamps', () => {
   it('handles lines too short for a single lamp', () => {
     expect(lampSites([{ x: 0, y: 0, z: 0 }], 40, 6)).toEqual([]);
     expect(lampSites(straight, 0, 6)).toEqual([]);
+  });
+});
+
+describe('bridges', () => {
+  it('spans between its ends instead of following the ground', () => {
+    // A crossing: high banks either side, open water in the middle.
+    const points: RibbonPoint[] = Array.from({ length: 11 }, (_, i) => ({
+      x: 0,
+      y: 0,
+      z: -i * 100,
+    }));
+    const ground = points.map((_, i) => (i === 0 || i === 10 ? 60 : -0));
+    bridgeDeck(points, ground, 5, 9);
+    // Ends sit on their abutments, the middle stays up with them.
+    expect(points[0].y).toBeCloseTo(60, 6);
+    expect(points[10].y).toBeCloseTo(60, 6);
+    expect(points[5].y).toBeGreaterThan(50);
+  });
+
+  it('keeps a deck clear of open water even between low banks', () => {
+    const points: RibbonPoint[] = Array.from({ length: 5 }, (_, i) => ({ x: 0, y: 0, z: -i * 50 }));
+    const ground = [1, 0, 0, 0, 1];
+    bridgeDeck(points, ground, 5, 9);
+    for (const point of points.slice(1, 4)) expect(point.y).toBeGreaterThanOrEqual(9);
+  });
+
+  it('lifts over anything that pokes through the span', () => {
+    const points: RibbonPoint[] = Array.from({ length: 5 }, (_, i) => ({ x: 0, y: 0, z: -i * 50 }));
+    // A hillock in the middle, higher than a straight line between the ends.
+    const ground = [10, 12, 40, 12, 10];
+    bridgeDeck(points, ground, 5, 9);
+    expect(points[2].y).toBeGreaterThanOrEqual(45);
+  });
+
+  it('parses bridge and tunnel tags', () => {
+    const ways = parseOverpass({
+      elements: [
+        {
+          type: 'way',
+          id: 1,
+          tags: { highway: 'motorway', bridge: 'yes', layer: '1', name: 'Boğaziçi Köprüsü' },
+          geometry: [
+            { lat: 41.04, lon: 29.02 },
+            { lat: 41.045, lon: 29.04 },
+          ],
+        },
+        // Tunnels are dropped: draped on the surface they would cross the hill.
+        {
+          type: 'way',
+          id: 2,
+          tags: { highway: 'primary', tunnel: 'yes' },
+          geometry: [
+            { lat: 41.04, lon: 29.02 },
+            { lat: 41.045, lon: 29.04 },
+          ],
+        },
+      ],
+    });
+    expect(ways).toHaveLength(1);
+    expect(ways[0].bridge).toBe(true);
+    expect(ways[0].layer).toBe(1);
+    expect(ways[0].name).toBe('Boğaziçi Köprüsü');
   });
 });

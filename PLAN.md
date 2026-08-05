@@ -565,7 +565,7 @@ otoyolu, lamba dizisi, tek araba — ekran görüntüsü alınıp README'ye konu
   sayısı, doku bütçesi, bloom, gölge), tuş yeniden atama, dil TR/EN (basit sözlük objesi),
   imagery sağlayıcı seçimi. localStorage'a kaydet. Kabul: Düşük preset entegre GPU'da
   fps'i belirgin artırıyor.
-- [ ] **7.4 Ses.** Yap: WebAudio — motor sesi (araç başına loop, hıza göre pitch), rüzgar
+- [x] **7.4 Ses.** Yap: WebAudio — motor sesi (araç başına loop, hıza göre pitch), rüzgar
   (uçak hızıyla), dalga (gemi), çarpışma efekti. Ses dosyaları CC0 (freesound/Kenney).
   Kabul: sesler hıza tepkili, toplam < 2 MB.
 - [x] **7.5 Yardım.** Yap: H tuşu → tuş şeması overlay (§8 tablosu). Kabul: açılıp kapanıyor.
@@ -764,7 +764,6 @@ yapılmayanlar burada toplu olarak yazılı.
   listesi var (`src/data/places.ts`): büyük havaalanları, Türkiye'den ve dünyadan doğal/kültürel
   noktalar, sürüş rotaları. Anında ve çevrimdışı çalışıyor; gerisi Nominatim'den geliyor.
 - **3.1–3.2 Rapier ve heightfield collider.** Yukarıdaki sapma notuna bakın.
-- **7.4 Ses.** Uygulanmadı.
 - **8.2 Rota editörü ve rota paylaşımı.** Yarış kapıları prosedürel diziliyor; elle rota çizme yok.
 - **8.4 Hayalet (ghost).** Uygulanmadı; en iyi süre saklanıyor.
 - **Faz 9 Multiplayer.** Planda da opsiyoneldi; sunucu gerektirdiği için kullanıcı kararına bırakıldı.

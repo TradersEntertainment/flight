@@ -146,8 +146,31 @@ describe('building tags', () => {
     expect(buildingHeight({ building: 'yes', height: '18', 'building:levels': '2' })).toBe(18);
   });
 
-  it('derives height from floors', () => {
-    expect(buildingHeight({ building: 'yes', 'building:levels': '5' })).toBeCloseTo(16, 6);
+  it('derives height from floors, with a taller ground floor', () => {
+    const five = buildingHeight({ building: 'yes', 'building:levels': '5' });
+    // Five residential storeys land near 17 m, not a flat 5 x 3.
+    expect(five).toBeGreaterThan(15);
+    expect(five).toBeLessThan(19);
+    expect(buildingHeight({ building: 'yes', 'building:levels': '10' })).toBeGreaterThan(five);
+  });
+
+  it('gives office floors more height than flats', () => {
+    const office = buildingHeight({ building: 'office', 'building:levels': '30' });
+    const flats = buildingHeight({ building: 'apartments', 'building:levels': '30' });
+    expect(office).toBeGreaterThan(flats);
+    // A 30-storey tower should read as a tower, not a block.
+    expect(office).toBeGreaterThan(110);
+  });
+
+  it('adds roof storeys on top', () => {
+    const plain = buildingHeight({ building: 'yes', 'building:levels': '4' });
+    expect(buildingHeight({ building: 'yes', 'building:levels': '4', 'roof:levels': '1' })).toBeGreaterThan(plain);
+    expect(buildingHeight({ building: 'yes', 'building:levels': '4', 'roof:height': '6' })).toBeCloseTo(plain + 6, 6);
+  });
+
+  it('reads heights tagged in feet', () => {
+    expect(parseHeight('100 ft')).toBeCloseTo(30.48, 2);
+    expect(parseHeight('100feet')).toBeCloseTo(30.48, 2);
   });
 
   it('falls back to a plausible height for the type', () => {

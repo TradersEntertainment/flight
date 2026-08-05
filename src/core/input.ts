@@ -34,8 +34,10 @@ const KEY_ACTIONS: Record<string, Action> = {
   KeyD: 'right',
   ArrowLeft: 'left',
   ArrowRight: 'right',
-  ArrowUp: 'pitchDown',
-  ArrowDown: 'pitchUp',
+  // Up climbs. Sim players who expect a control column can flip this in the
+  // settings; everyone else presses up to go up.
+  ArrowUp: 'pitchUp',
+  ArrowDown: 'pitchDown',
   KeyQ: 'yawLeft',
   KeyE: 'yawRight',
   Space: 'brake',

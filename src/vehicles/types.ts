@@ -55,6 +55,18 @@ export interface HudReading {
   surface?: string | null;
 }
 
+/** What the sound system needs to know about a vehicle each frame. */
+export interface VehicleAudio {
+  /** Metres per second. */
+  speed: number;
+  throttle: number;
+  airborne: boolean;
+  /** Surface roughness 0..1; tarmac is smooth, open ground is not. */
+  roughness: number;
+  /** How hard the vehicle is sliding, 0..1. */
+  slip: number;
+}
+
 export interface Vehicle {
   readonly kind: VehicleKind;
   readonly object: Group;
@@ -64,6 +76,7 @@ export interface Vehicle {
   frame?(dt: number, world: World): void;
   getCameraTarget(): CameraTarget;
   getHud(): HudReading;
+  getAudio(): VehicleAudio;
   getState(): VehicleState;
   /** Places the vehicle; called on spawn, teleport and vehicle change. */
   enter(state: VehicleState, world: World): void;

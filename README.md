@@ -54,6 +54,9 @@ araziyi dört nokta örneklemesiyle takip eder; el freniyle yanal tutuş düşer
 Gemi, şaderin çizdiği Gerstner dalgalarına gövdesini oturtur — CPU ve GPU aynı dalga tablosunu
 kullanır.
 
+**Başlangıç.** Oyun Mecidiyeköy'de, arabada başlar — Büyükdere Caddesi'nde, kuleler yolunuzun
+üstünde. `1` ile uçağa geçip havalanabilir, `T` ile dünyanın başka bir yerine ışınlanabilirsiniz.
+
 **Yollar.** OpenStreetMap yolları oyuncunun çevresinde hücre hücre akıtılır, araziye serilir ve
 **sürülebilir**: araba asfaltta daha çok tutunur, daha az yuvarlanma direnci görür ve daha yüksek
 hıza çıkar. Yol profili düzleştirildiği için 30 m'lik yükseklik ızgarasının tümseklerini
@@ -63,7 +66,16 @@ almazsınız. Üzerinde olduğunuz yolun adı ekranda görünür.
 etiketlerinden, yoksa bina tipine göre). Pencereler geometri değil şader deseni: gece bir kasaba
 binlerce yanan pencere olarak okunur, maliyeti birkaç komut.
 
-**Gece.** Tweet'teki NFS Carbon havası: bloom, ay ışığı tonlaması, gerçek far ışıkları, sokak
+**Köprüler.** `bridge` etiketli yollar araziye serilmez; iki ayağı arasına düz bir tabliye
+kurulur, altından geçen her şeyin üstünde kalır ve yeterince yüksekse ayaklar da çizilir. Boğaz
+Köprüsü'nden geçmek bu yüzden mümkün. Tüneller çizilmez (araziye serilseler tepenin üstünden
+geçerlerdi).
+
+**Ses.** Dosya yok: motor, rüzgâr, lastik ve su tamamen sentez. Motor sesi vitesten vitese
+tırmanıp düşer — hızlanmayı duyulur kılan şey budur. İlk tuşa basınca başlar (tarayıcılar
+jestsiz ses çalmaz).
+
+**Gece — ve sabah.** `N` ile sabah → gündüz → gün batımı → gece. Tweet'teki NFS Carbon havası: bloom, ay ışığı tonlaması, gerçek far ışıkları, sokak
 lambaları ve yanan pencereler.
 
 ## Veri kaynakları

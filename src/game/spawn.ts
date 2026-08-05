@@ -14,19 +14,27 @@ export interface SpawnPoint {
   heading?: number;
   /** Metres above ground for an airborne spawn. */
   altitude?: number;
+  /** Vehicle to start in. */
+  vehicle?: string;
 }
 
-/** Istanbul Airport, runway 34L — the default first flight. */
+/**
+ * Mecidiyeköy, on Büyükdere Caddesi — Istanbul's tower district.
+ *
+ * Starting in the car rather than the aeroplane: this is a place to look up at,
+ * and the first thing a new player should see is the world they know.
+ */
 export const DEFAULT_SPAWN: SpawnPoint = {
-  lon: 28.7519,
-  lat: 41.2619,
-  name: 'İstanbul Havalimanı',
-  heading: 355,
+  lon: 28.9944,
+  lat: 41.0678,
+  name: 'Mecidiyeköy',
+  // Up Büyükdere Caddesi toward Levent, which is where the towers are.
+  heading: 20,
   altitude: 0,
+  vehicle: 'car',
 };
 
 export interface UrlState extends SpawnPoint {
-  vehicle?: string;
   time?: string;
 }
 

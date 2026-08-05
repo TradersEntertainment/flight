@@ -21,6 +21,15 @@ import { SearchPanel, type SearchResult } from '../ui/search';
 import { HelpPanel, SettingsPanel } from '../ui/menu';
 import { RaceMode, formatTime } from '../modes/race';
 import { TouchControls, hasTouch } from '../ui/touch';
+import { AudioSystem } from '../audio';
+import { isTimeOfDay, type TimeOfDay } from '../world/sky';
+
+const TIME_LABEL: Record<TimeOfDay, string> = {
+  dawn: 'Sabah',
+  day: 'Gündüz',
+  sunset: 'Gün batımı',
+  night: 'Gece',
+};
 import { PlaneVehicle } from '../vehicles/plane';
 import { CarVehicle } from '../vehicles/car';
 
@@ -33,6 +42,7 @@ export class Game {
   readonly vehicles: VehicleManager;
   readonly camera = new ChaseCamera();
   readonly race = new RaceMode();
+  readonly audio: AudioSystem;
 
   private settings: Settings;
   private readonly ui: HTMLElement;
@@ -63,6 +73,7 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.settings = loadSettings();
+    this.audio = new AudioSystem(this.settings.audio);
     const spawn = readSpawnFromUrl();
     this.placeName = spawn.name ?? DEFAULT_SPAWN.name ?? '';
     this.ui = uiRoot;
@@ -96,11 +107,10 @@ export class Game {
   }
 
   private applyStartState(spawn: UrlState): void {
-    if (spawn.time === 'day' || spawn.time === 'sunset' || spawn.time === 'night') {
-      this.world.sky.setTimeOfDay(spawn.time, true);
-    }
+    if (spawn.time && isTimeOfDay(spawn.time)) this.world.sky.setTimeOfDay(spawn.time, true);
+    const requested = spawn.vehicle ?? DEFAULT_SPAWN.vehicle;
     const kind: VehicleKind =
-      spawn.vehicle === 'car' || spawn.vehicle === 'boat' ? spawn.vehicle : 'plane';
+      requested === 'car' || requested === 'boat' || requested === 'plane' ? requested : 'car';
     const heading = ((spawn.heading ?? 0) * Math.PI) / 180;
     // The anchor is the spawn point, so the world origin is where we start.
     this.vehicles.start(kind, {
@@ -118,6 +128,12 @@ export class Game {
 
   private wireEvents(): void {
     this.world.onNotice = (message) => this.toasts.show(message);
+
+    // Browsers only allow audio to start from a gesture, so the first key or
+    // tap builds the graph; until then the game is silent.
+    const startAudio = (): void => this.audio.start();
+    window.addEventListener('keydown', startAudio, { once: true });
+    window.addEventListener('pointerdown', startAudio, { once: true });
 
     this.vehicles.onRelocate = (kind, distance) => {
       const km = distance > 1200 ? `${(distance / 1000).toFixed(1)} km` : `${Math.round(distance)} m`;
@@ -139,11 +155,7 @@ export class Game {
       this.camera.reset();
     });
     this.input.on('timeOfDay', () => {
-      const next = this.world.sky.cycle();
-      this.toasts.show(
-        next === 'day' ? 'Gündüz' : next === 'sunset' ? 'Gün batımı' : 'Gece',
-        1600,
-      );
+      this.toasts.show(TIME_LABEL[this.world.sky.cycle()], 1600);
     });
     this.input.on('help', () => this.help.toggle());
     this.input.on('menu', () => {
@@ -208,6 +220,7 @@ export class Game {
       if (car instanceof CarVehicle) car.headlightPower = this.world.sky.nightAmount;
 
       this.world.update(dt);
+      this.audio.update({ kind: this.vehicles.kind, ...this.vehicles.active.getAudio() });
       this.updatePendingArrival();
       this.race.update(dt, this.vehicles.active.getState().position);
       this.updateUi(dt);
@@ -343,6 +356,8 @@ export class Game {
     this.settings = settings;
     saveSettings(settings);
     this.world.applySettings(settings);
+    this.audio.setEnabled(settings.audio);
+    if (settings.audio) this.audio.start();
     this.minimap.setVisible(settings.showMinimap);
     this.applyInvertPitch();
     this.attribution.set(this.world.attribution);
@@ -350,7 +365,10 @@ export class Game {
   }
 
   private applyInvertPitch(): void {
-    const plane = this.vehicles.active;
+    // The aeroplane keeps the setting whether or not it is the active vehicle;
+    // reading it off the active one meant the preference silently did nothing
+    // when it was changed while driving.
+    const plane = this.vehicles.get('plane');
     if (plane instanceof PlaneVehicle) plane.invertPitch = this.settings.invertPitch;
   }
 
@@ -360,6 +378,7 @@ export class Game {
 
   dispose(): void {
     this.engine.stop();
+    this.audio.dispose();
     this.vehicles.dispose();
     this.race.clear();
     this.world.dispose();

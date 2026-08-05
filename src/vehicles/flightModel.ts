@@ -31,6 +31,15 @@ export interface FlightConfig {
   gearHeight: number;
   /** Vertical speed above which touchdown becomes a crash, m/s. */
   maxTouchdownRate: number;
+  /**
+   * Steepest climb or dive the controls will hold, radians.
+   *
+   * Without a limit, holding the pitch key loops the aircraft — which for
+   * anyone not flying simulators reads as "it keeps crashing".
+   */
+  pitchLimit: number;
+  /** How strongly the aircraft rolls itself level when the stick is centred. */
+  levelAssist: number;
 }
 
 export const DEFAULT_FLIGHT: FlightConfig = {
@@ -46,6 +55,8 @@ export const DEFAULT_FLIGHT: FlightConfig = {
   alignRate: 2.2,
   gearHeight: 1.15,
   maxTouchdownRate: 7,
+  pitchLimit: 0.95, // about 54 degrees
+  levelAssist: 1.1,
 };
 
 export const GRAVITY = 9.81;
@@ -172,17 +183,36 @@ export class FlightModel {
     // straight through; about +y the nose swings to port and about +z the right
     // wing rises, so yaw and roll are negated to match the control convention.
     let pitchRate = controls.pitch * cfg.maxPitchRate * authority;
-    const rollRate = -controls.roll * cfg.maxRollRate * authority;
+    let rollRate = -controls.roll * cfg.maxRollRate * authority;
     let yawRate = -controls.yaw * cfg.maxYawRate * authority;
 
     // A stalled wing drops the nose until speed recovers.
     if (this.stalled) pitchRate -= (1 - stallScale) * 0.8;
+
+    // Keep the nose inside a flyable envelope. Authority fades as the limit
+    // approaches rather than stopping dead, so it feels like the aircraft
+    // running out of elevator, not like hitting a wall.
+    const pitchAngle = Math.asin(clamp(_forward.y, -1, 1));
+    const margin = 0.35;
+    if (pitchRate > 0 && pitchAngle > cfg.pitchLimit - margin) {
+      pitchRate *= clamp((cfg.pitchLimit - pitchAngle) / margin, 0, 1);
+    } else if (pitchRate < 0 && pitchAngle < -cfg.pitchLimit + margin) {
+      pitchRate *= clamp((cfg.pitchLimit + pitchAngle) / margin, 0, 1);
+    }
+    // Near the stall there is not enough air over the tail to pull harder.
+    if (pitchRate > 0) {
+      pitchRate *= clamp((vFwd - cfg.stallSpeed) / (cfg.stallSpeed * 0.6), 0.15, 1);
+    }
 
     // Coordinated turn: banking swings the nose without touching the rudder,
     // which is what makes a bank-and-pull feel like flying rather than steering.
     _tmp.set(1, 0, 0).applyQuaternion(this.orientation);
     const bankRight = -_tmp.y;
     yawRate += -bankRight * 0.6 * clamp(vFwd / cfg.referenceSpeed, 0, 1.4);
+
+    // Hands off the stick, the aircraft rolls itself level. Without this a
+    // casual player banks, gets distracted, and spirals into the ground.
+    if (controls.roll === 0) rollRate += bankRight * cfg.levelAssist;
 
     _rot.setFromEuler(_euler.set(pitchRate * dt, yawRate * dt, rollRate * dt, 'YXZ'));
     this.orientation.multiply(_rot).normalize();

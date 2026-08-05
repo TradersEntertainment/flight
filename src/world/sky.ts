@@ -27,13 +27,33 @@ import {
 } from 'three';
 import type { TerrainUniforms } from './terrain/material';
 
-export type TimeOfDay = 'day' | 'sunset' | 'night';
+export type TimeOfDay = 'dawn' | 'day' | 'sunset' | 'night';
+
+export const TIMES_OF_DAY: TimeOfDay[] = ['dawn', 'day', 'sunset', 'night'];
+
+export function isTimeOfDay(value: string): value is TimeOfDay {
+  return (TIMES_OF_DAY as string[]).includes(value);
+}
 
 /** Sun elevation in degrees for each preset. */
 const PRESET_ELEVATION: Record<TimeOfDay, number> = {
+  dawn: 17,
   day: 52,
   sunset: 2,
   night: -18,
+};
+
+/**
+ * Sun azimuth per preset, radians from north toward east.
+ *
+ * Dawn and sunset sit at the same elevation, so the sun has to be on opposite
+ * sides of the sky for them to read as different times at all.
+ */
+const PRESET_AZIMUTH: Record<TimeOfDay, number> = {
+  dawn: 1.35,
+  day: 2.5,
+  sunset: 4.3,
+  night: 4.3,
 };
 
 const SKY_VERT = /* glsl */ `
@@ -102,6 +122,25 @@ const DAY: Palette = {
   night: 0,
 };
 
+const DAWN: Palette = {
+  // Early morning, not sunrise: the sun is up and the land is lit, but the
+  // light is still low and warm and the air has not cleared yet.
+  zenith: new Color(0x3a76bd),
+  horizon: new Color(0xe9c6a4),
+  ground: new Color(0x6a6f78),
+  sun: new Color(0xfff0d2),
+  light: new Color(0xffe2bd),
+  ambientSky: new Color(0xa8bcd8),
+  ambientGround: new Color(0x6d6455),
+  fog: new Color(0xc6cedb),
+  lightIntensity: 1.95,
+  ambientIntensity: 0.9,
+  // Morning haze: the thickest of the day, which is most of what makes an
+  // early flight look early.
+  fogDensity: 2.6e-5,
+  night: 0.06,
+};
+
 const SUNSET: Palette = {
   zenith: new Color(0x1d3f7a),
   horizon: new Color(0xe08a4a),
@@ -131,6 +170,31 @@ const NIGHT: Palette = {
   fogDensity: 2.1e-5,
   night: 1,
 };
+
+const PALETTE: Record<TimeOfDay, Palette> = { dawn: DAWN, day: DAY, sunset: SUNSET, night: NIGHT };
+
+function copyPalette(source: Palette, target: Palette): void {
+  target.zenith.copy(source.zenith);
+  target.horizon.copy(source.horizon);
+  target.ground.copy(source.ground);
+  target.sun.copy(source.sun);
+  target.light.copy(source.light);
+  target.ambientSky.copy(source.ambientSky);
+  target.ambientGround.copy(source.ambientGround);
+  target.fog.copy(source.fog);
+  target.lightIntensity = source.lightIntensity;
+  target.ambientIntensity = source.ambientIntensity;
+  target.fogDensity = source.fogDensity;
+  target.night = source.night;
+}
+
+/** Shortest signed way around the circle from a to b. */
+function shortestAngle(a: number, b: number): number {
+  let delta = (b - a) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return delta;
+}
 
 /** Scratch palette that lerpPalette writes into, to avoid per-frame garbage. */
 function blankPalette(): Palette {
@@ -177,10 +241,14 @@ export class Sky {
   private readonly stars: Points;
   private readonly starMaterial: PointsMaterial;
   private readonly current: Palette = blankPalette();
+  /** Palette the transition started from, and the one it is heading to. */
+  private readonly from: Palette = blankPalette();
+  private target: TimeOfDay = 'night';
+  private blend = 1;
   private elevationDeg = PRESET_ELEVATION.night;
   private targetElevation = PRESET_ELEVATION.night;
-  /** Sun azimuth in radians, measured from north toward east. */
-  private azimuth = 2.5;
+  private azimuth = PRESET_AZIMUTH.night;
+  private targetAzimuth = PRESET_AZIMUTH.night;
 
   constructor(
     private readonly scene: Scene,
@@ -237,23 +305,28 @@ export class Sky {
   }
 
   setTimeOfDay(time: TimeOfDay, immediate = false): void {
+    copyPalette(this.current, this.from);
+    this.target = time;
+    this.blend = immediate ? 1 : 0;
     this.targetElevation = PRESET_ELEVATION[time];
-    if (immediate) this.elevationDeg = this.targetElevation;
+    this.targetAzimuth = PRESET_AZIMUTH[time];
+    if (immediate) {
+      this.elevationDeg = this.targetElevation;
+      this.azimuth = this.targetAzimuth;
+      copyPalette(PALETTE[time], this.from);
+    }
   }
 
-  /** Cycles day → sunset → night → day. */
+  /** Cycles through the day in order: dawn, day, sunset, night. */
   cycle(): TimeOfDay {
-    const order: TimeOfDay[] = ['day', 'sunset', 'night'];
-    const currentIndex = order.findIndex((t) => PRESET_ELEVATION[t] === this.targetElevation);
-    const next = order[(currentIndex + 1) % order.length];
+    const index = TIMES_OF_DAY.indexOf(this.target);
+    const next = TIMES_OF_DAY[(index + 1) % TIMES_OF_DAY.length];
     this.setTimeOfDay(next);
     return next;
   }
 
   get timeOfDay(): TimeOfDay {
-    if (this.elevationDeg > 20) return 'day';
-    if (this.elevationDeg > -6) return 'sunset';
-    return 'night';
+    return this.target;
   }
 
   get nightAmount(): number {
@@ -268,6 +341,8 @@ export class Sky {
   update(dt: number, cameraPosition: Vector3): void {
     // Ease toward the target so switching time of day is a transition.
     this.elevationDeg += (this.targetElevation - this.elevationDeg) * Math.min(1, dt * 1.8);
+    this.azimuth += shortestAngle(this.azimuth, this.targetAzimuth) * Math.min(1, dt * 1.8);
+    this.blend = Math.min(1, this.blend + dt * 1.4);
 
     const rad = (this.elevationDeg * Math.PI) / 180;
     this.sunDirection.set(
@@ -276,17 +351,10 @@ export class Sky {
       -Math.cos(rad) * Math.cos(this.azimuth),
     );
 
-    // Blend day → sunset → night by sun elevation.
-    let palette: Palette;
-    if (this.elevationDeg >= PRESET_ELEVATION.sunset) {
-      const t = 1 - (this.elevationDeg - PRESET_ELEVATION.sunset) /
-        (PRESET_ELEVATION.day - PRESET_ELEVATION.sunset);
-      palette = lerpPalette(DAY, SUNSET, clamp01(t), this.current);
-    } else {
-      const t = (PRESET_ELEVATION.sunset - this.elevationDeg) /
-        (PRESET_ELEVATION.sunset - PRESET_ELEVATION.night);
-      palette = lerpPalette(SUNSET, NIGHT, clamp01(t), this.current);
-    }
+    // Cross-fade between the two presets. Deriving the palette from the sun's
+    // elevation instead would make dawn and sunset identical: they sit at the
+    // same height, and only their colour tells them apart.
+    const palette = lerpPalette(this.from, PALETTE[this.target], this.blend, this.current);
 
     const u = this.material.uniforms;
     (u.uZenith.value as Color).copy(palette.zenith);

@@ -18,8 +18,27 @@ export interface Building {
   kind: string;
 }
 
-/** Typical storey height used when only a floor count is tagged. */
-const FLOOR_HEIGHT = 3.2;
+/**
+ * Storey height by building type, metres.
+ *
+ * Most buildings carry `building:levels` and nothing else, so this multiplier
+ * decides the skyline. Offices and hotels have taller floors than flats, and
+ * getting that wrong makes a tower district look like a housing estate.
+ */
+const FLOOR_HEIGHT: Record<string, number> = {
+  office: 3.9,
+  commercial: 3.9,
+  retail: 4.2,
+  hotel: 3.4,
+  industrial: 5.5,
+  warehouse: 6,
+  hospital: 3.8,
+  church: 6,
+  mosque: 6,
+  train_station: 5,
+  parking: 2.9,
+};
+const DEFAULT_FLOOR_HEIGHT = 3.1;
 
 /** Fallback heights by building type, metres. */
 const DEFAULT_HEIGHT: Record<string, number> = {
@@ -52,27 +71,34 @@ const GENERIC_HEIGHT = 8.5;
 /** Parses a tagged height, which may carry units. */
 export function parseHeight(value: string | undefined): number | null {
   if (!value) return null;
-  const match = /^(-?\d+(?:\.\d+)?)\s*(m|meters?|metres?|')?$/i.exec(value.trim());
+  const match = /^(-?\d+(?:\.\d+)?)\s*(m|meters?|metres?|ft|feet|')?$/i.exec(value.trim());
   if (!match) return null;
   const amount = Number(match[1]);
   if (!Number.isFinite(amount) || amount <= 0) return null;
-  // Feet, when tagged with a prime.
-  return match[2] === "'" ? amount * 0.3048 : amount;
+  const unit = (match[2] ?? '').toLowerCase();
+  return unit === "'" || unit === 'ft' || unit === 'feet' ? amount * 0.3048 : amount;
 }
 
 /** Height for a building, from the most reliable tag available. */
 export function buildingHeight(tags: Record<string, string>): number {
+  const kind = (tags.building === 'yes' ? tags['building:use'] : tags.building) ?? '';
+
   const tagged = parseHeight(tags.height);
   if (tagged !== null) return clampHeight(tagged);
 
   const levels = Number(tags['building:levels']);
   if (Number.isFinite(levels) && levels > 0) {
-    const roof = parseHeight(tags['roof:height']) ?? 0;
-    return clampHeight(levels * FLOOR_HEIGHT + roof);
+    const perFloor = FLOOR_HEIGHT[kind] ?? DEFAULT_FLOOR_HEIGHT;
+    // Roof storeys and a tagged roof height both add on top of the floors.
+    const roofLevels = Number(tags['roof:levels']);
+    const roof =
+      parseHeight(tags['roof:height']) ??
+      (Number.isFinite(roofLevels) && roofLevels > 0 ? roofLevels * perFloor : 0);
+    // A ground floor is taller than the ones above it in almost every building.
+    return clampHeight((levels - 1) * perFloor + perFloor * 1.35 + roof);
   }
 
-  const kind = tags.building === 'yes' ? tags['building:use'] : tags.building;
-  return DEFAULT_HEIGHT[kind ?? ''] ?? GENERIC_HEIGHT;
+  return DEFAULT_HEIGHT[kind] ?? GENERIC_HEIGHT;
 }
 
 function clampHeight(height: number): number {

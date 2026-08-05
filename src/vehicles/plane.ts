@@ -5,7 +5,7 @@
 import { Group, Vector3 } from 'three';
 import { FlightModel, type FlightControls } from './flightModel';
 import { createPlane, type PlaneModel } from './models';
-import type { CameraTarget, HudReading, Vehicle, VehicleState } from './types';
+import type { CameraTarget, HudReading, Vehicle, VehicleAudio, VehicleState } from './types';
 import type { Input } from '../core/input';
 import type { World } from '../game/world';
 
@@ -146,6 +146,17 @@ export class PlaneVehicle implements Vehicle {
           : this.flight.agl < 60 && !this.flight.onGround
             ? 'ALÇAK'
             : null,
+    };
+  }
+
+  getAudio(): VehicleAudio {
+    return {
+      speed: this.flight.airspeed,
+      throttle: this.flight.throttle,
+      airborne: !this.flight.onGround,
+      // Runways and grass strips alike: on the wheels there is rumble.
+      roughness: 0.6,
+      slip: 0,
     };
   }
 

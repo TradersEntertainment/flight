@@ -16,6 +16,10 @@ export interface RoadWay {
   /** Longitude/latitude pairs along the way. */
   points: Array<{ lon: number; lat: number }>;
   lit: boolean;
+  /** True for a deck carried above the ground or water. */
+  bridge: boolean;
+  /** OSM layer; bridges stack upward, tunnels downward. */
+  layer: number;
 }
 
 export interface OverpassElement {
@@ -69,11 +73,17 @@ export function parseOverpass(response: OverpassResponse): RoadWay[] {
     if (!highway) continue;
     const roadClass = CLASS_OF[highway];
     if (!roadClass) continue;
+    const tags = element.tags ?? {};
+    // Tunnels are not drawn: draping one on the surface would put a road
+    // straight over the hill it is supposed to pass through.
+    if (tags.tunnel && tags.tunnel !== 'no') continue;
     ways.push({
       id: element.id,
-      name: element.tags?.name ?? element.tags?.ref ?? null,
+      name: tags.name ?? tags.ref ?? null,
       roadClass,
-      lit: element.tags?.lit === 'yes',
+      lit: tags.lit === 'yes',
+      bridge: Boolean(tags.bridge) && tags.bridge !== 'no',
+      layer: Number(tags.layer) || 0,
       points: element.geometry.map((p) => ({ lon: p.lon, lat: p.lat })),
     });
   }

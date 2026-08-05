@@ -35,6 +35,12 @@ export const PLACES: Place[] = [
   { name: 'Trabzon Havalimanı', code: 'TZX', lon: 39.7897, lat: 40.9951, kind: 'airport', region: 'Trabzon', vehicle: 'plane' },
 
   // Türkiye — cities and landmarks
+  { name: 'Mecidiyeköy', lon: 28.9944, lat: 41.0678, kind: 'city', region: 'İstanbul', vehicle: 'car', alt: ['gokdelen', 'buyukdere'] },
+  { name: 'Levent (gökdelenler)', lon: 29.0122, lat: 41.0819, kind: 'city', region: 'İstanbul', vehicle: 'car', alt: ['skyscrapers', 'istanbul sapphire'] },
+  { name: 'Maslak', lon: 29.0206, lat: 41.1122, kind: 'city', region: 'İstanbul', vehicle: 'car' },
+  { name: 'Taksim Meydanı', lon: 28.9855, lat: 41.0370, kind: 'landmark', region: 'İstanbul', vehicle: 'car' },
+  { name: 'Galata Kulesi', lon: 28.9743, lat: 41.0256, kind: 'landmark', region: 'İstanbul' },
+  { name: 'Çamlıca Kulesi', lon: 29.0680, lat: 41.0281, kind: 'landmark', region: 'İstanbul' },
   { name: 'Boğaziçi Köprüsü', lon: 29.0339, lat: 41.0451, kind: 'landmark', region: 'İstanbul', alt: ['bogazici', 'bosphorus'] },
   { name: 'Kız Kulesi', lon: 29.0041, lat: 41.0211, kind: 'landmark', region: 'İstanbul', alt: ['maiden tower'] },
   { name: 'Ayasofya', lon: 28.978, lat: 41.0086, kind: 'landmark', region: 'İstanbul', alt: ['hagia sophia'] },
