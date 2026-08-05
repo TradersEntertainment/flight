@@ -10,7 +10,7 @@
  */
 
 import { TILE_PIXELS, type ElevationEncoding } from './terrarium';
-import { latToTileY, lonToTileX, tileAt, tileKey, type TileId } from '../geo/tilemath';
+import { latToTileY, lonToTileX, tileAt, type TileId } from '../geo/tilemath';
 import { metersPerPixel } from '../geo/mercator';
 import { TileFetcher } from './tiles/fetcher';
 import { TILE_SOURCES, tileUrl } from './tileSources';
@@ -37,9 +37,21 @@ export const TERRARIUM: ElevationSource = {
 
 type TileState = 'loading' | 'ready' | 'failed';
 
+/**
+ * Numeric cache key.
+ *
+ * Height sampling is the hottest path in the game — the minimap alone asks for
+ * hundreds of samples per frame — and building `"z/x/y"` strings for every
+ * lookup dominated the profile. Zoom never exceeds 15, so x and y fit in 15 bits
+ * each and the whole key fits exactly in a double.
+ */
+function cacheKey(z: number, x: number, y: number): number {
+  return (z * 32768 + y) * 32768 + x;
+}
+
 interface ElevationTile {
   id: TileId;
-  key: string;
+  key: number;
   state: TileState;
   heights: Float32Array | null;
   size: number;
@@ -53,7 +65,7 @@ interface ElevationTile {
 export type TileReadyListener = (id: TileId) => void;
 
 export class ElevationStore {
-  private readonly tiles = new Map<string, ElevationTile>();
+  private readonly tiles = new Map<number, ElevationTile>();
   private readonly zoomsLoaded = new Set<number>();
   private readonly workers: Worker[] = [];
   private readonly listeners = new Set<TileReadyListener>();
@@ -94,7 +106,7 @@ export class ElevationStore {
   }
 
   isLoaded(id: TileId): boolean {
-    return this.tiles.get(tileKey(id.z, id.x, id.y))?.state === 'ready';
+    return this.tiles.get(cacheKey(id.z, id.x, id.y))?.state === 'ready';
   }
 
   /**
@@ -106,17 +118,23 @@ export class ElevationStore {
    * when it disposes the texture.
    */
   takeBitmap(id: TileId): ImageBitmap | null {
-    const tile = this.tiles.get(tileKey(id.z, id.x, id.y));
+    const tile = this.tiles.get(cacheKey(id.z, id.x, id.y));
     if (tile?.state !== 'ready' || !tile.bitmap) return null;
     const bitmap = tile.bitmap;
     tile.bitmap = null;
     return bitmap;
   }
 
+  /** Height range of a decoded tile, for bounding volumes. */
+  statsFor(id: TileId): { min: number; max: number } | null {
+    const tile = this.tiles.get(cacheKey(id.z, id.x, id.y));
+    return tile?.state === 'ready' ? { min: tile.min, max: tile.max } : null;
+  }
+
   request(id: TileId, priority = 0): void {
     const z = Math.min(id.z, this.source.maxZoom);
     if (z !== id.z) return; // callers must clamp; nothing exists above maxZoom
-    const key = tileKey(z, id.x, id.y);
+    const key = cacheKey(z, id.x, id.y);
     const existing = this.tiles.get(key);
     if (existing) {
       existing.lastUsed = this.frame;
@@ -199,15 +217,42 @@ export class ElevationStore {
     }
   }
 
-  /** Highest zoom whose data covers a point, or null when nothing is loaded. */
-  bestZoomAt(lon: number, lat: number): number | null {
-    for (let z = this.source.maxZoom; z >= ELEVATION_MIN_ZOOM; z--) {
-      if (!this.zoomsLoaded.has(z)) continue;
-      const id = tileAt(lon, lat, z);
-      const tile = this.tiles.get(tileKey(z, id.x, id.y));
-      if (tile?.state === 'ready') return z;
+  /**
+   * Walks the zoom chain from `startZoom` down to the coarsest loaded level.
+   *
+   * The tile coordinates at each level come from halving the ones above, so the
+   * expensive projection maths happens once per sample rather than once per
+   * level.
+   */
+  private walkDown(
+    lon: number,
+    lat: number,
+    startZoom: number,
+    visit: (tile: ElevationTile, fx: number, fy: number, z: number) => number | null,
+  ): number | null {
+    const top = Math.min(startZoom, this.source.maxZoom);
+    const fxTop = lonToTileX(lon, top);
+    const fyTop = latToTileY(lat, top);
+    let x = Math.floor(fxTop);
+    let y = Math.floor(fyTop);
+    for (let z = top; z >= ELEVATION_MIN_ZOOM; z--) {
+      if (this.zoomsLoaded.has(z)) {
+        const tile = this.tiles.get(cacheKey(z, x, y));
+        if (tile?.state === 'ready' && tile.heights) {
+          const scale = 2 ** (z - top);
+          const result = visit(tile, fxTop * scale, fyTop * scale, z);
+          if (result !== null) return result;
+        }
+      }
+      x >>= 1;
+      y >>= 1;
     }
     return null;
+  }
+
+  /** Highest zoom whose data covers a point, or null when nothing is loaded. */
+  bestZoomAt(lon: number, lat: number): number | null {
+    return this.walkDown(lon, lat, this.source.maxZoom, (_tile, _fx, _fy, z) => z);
   }
 
   /**
@@ -215,15 +260,9 @@ export class ElevationStore {
    * has loaded yet, so callers never see NaN; use `bestZoomAt` to detect that.
    */
   sample(lon: number, lat: number): number {
-    const z = this.bestZoomAt(lon, lat);
-    if (z === null) return 0;
-    return this.sampleAtZoom(lon, lat, z) ?? 0;
-  }
-
-  /** Height range of a decoded tile, for bounding volumes. */
-  statsFor(id: TileId): { min: number; max: number } | null {
-    const tile = this.tiles.get(tileKey(id.z, id.x, id.y));
-    return tile?.state === 'ready' ? { min: tile.min, max: tile.max } : null;
+    return this.walkDown(lon, lat, this.source.maxZoom, (tile, fx, fy) =>
+      this.bilinear(tile, fx, fy),
+    ) ?? 0;
   }
 
   /**
@@ -234,35 +273,41 @@ export class ElevationStore {
    * finer neighbours stream in.
    */
   sampleAtZoomOrCoarser(lon: number, lat: number, z: number): number {
-    for (let level = Math.min(z, this.source.maxZoom); level >= ELEVATION_MIN_ZOOM; level--) {
-      const h = this.sampleAtZoom(lon, lat, level);
-      if (h !== null) return h;
-    }
-    return 0;
+    return this.walkDown(lon, lat, z, (tile, fx, fy) => this.bilinear(tile, fx, fy)) ?? 0;
   }
 
   /** Bilinear sample at an explicit zoom; null when the tile is missing. */
   sampleAtZoom(lon: number, lat: number, z: number): number | null {
-    const primaryId = tileAt(lon, lat, z);
-    const primary = this.tiles.get(tileKey(z, primaryId.x, primaryId.y));
-    if (!primary || primary.state !== 'ready' || !primary.heights) return null;
-    primary.lastUsed = this.frame;
+    const id = tileAt(lon, lat, z);
+    const tile = this.tiles.get(cacheKey(z, id.x, id.y));
+    if (!tile || tile.state !== 'ready' || !tile.heights) return null;
+    return this.bilinear(tile, lonToTileX(lon, z), latToTileY(lat, z));
+  }
 
-    const size = primary.size;
-    const gx = lonToTileX(lon, z) * size - 0.5;
-    const gy = latToTileY(lat, z) * size - 0.5;
+  /**
+   * Bilinear interpolation in global pixel space.
+   *
+   * `fx`/`fy` are fractional tile coordinates at the tile's own zoom. Working in
+   * global pixels means two neighbouring render tiles that share an edge read
+   * exactly the same height there, so the surface meets without a crack.
+   */
+  private bilinear(tile: ElevationTile, fx: number, fy: number): number {
+    tile.lastUsed = this.frame;
+    const size = tile.size;
+    const gx = fx * size - 0.5;
+    const gy = fy * size - 0.5;
     const x0 = Math.floor(gx);
     const y0 = Math.floor(gy);
-    const fx = gx - x0;
-    const fy = gy - y0;
+    const tx = gx - x0;
+    const ty = gy - y0;
 
-    const h00 = this.readPixel(z, x0, y0, primary);
-    const h10 = this.readPixel(z, x0 + 1, y0, primary);
-    const h01 = this.readPixel(z, x0, y0 + 1, primary);
-    const h11 = this.readPixel(z, x0 + 1, y0 + 1, primary);
-    const top = h00 + (h10 - h00) * fx;
-    const bottom = h01 + (h11 - h01) * fx;
-    return top + (bottom - top) * fy;
+    const h00 = this.readPixel(tile.id.z, x0, y0, tile);
+    const h10 = this.readPixel(tile.id.z, x0 + 1, y0, tile);
+    const h01 = this.readPixel(tile.id.z, x0, y0 + 1, tile);
+    const h11 = this.readPixel(tile.id.z, x0 + 1, y0 + 1, tile);
+    const top = h00 + (h10 - h00) * tx;
+    const bottom = h01 + (h11 - h01) * tx;
+    return top + (bottom - top) * ty;
   }
 
   /**
@@ -279,7 +324,7 @@ export class ElevationStore {
     const ty = Math.floor(cy / size);
     let tile = primary;
     if (tx !== primary.id.x || ty !== primary.id.y) {
-      const neighbour = this.tiles.get(tileKey(z, tx, ty));
+      const neighbour = this.tiles.get(cacheKey(z, tx, ty));
       if (neighbour?.state === 'ready' && neighbour.heights) {
         neighbour.lastUsed = this.frame;
         tile = neighbour;

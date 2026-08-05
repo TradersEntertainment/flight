@@ -95,11 +95,13 @@ const MAP_FRAGMENT = /* glsl */ `
 const EMISSIVE_FRAGMENT = /* glsl */ `
   #include <emissivemap_fragment>
   #ifdef USE_MAP
-    // Bright imagery at night reads as settlements; give it a warm glow that
-    // bloom can pick up.
+    // Bright satellite pixels at night read as settlements; give them a warm
+    // glow. Only real imagery earns this: the stylised texture is mid-toned
+    // everywhere, so the same rule would set entire landscapes alight
+    // (uCityGlow is zero when the fallback texture is in use).
     float cityLuma = dot(gTerrainAlbedo, vec3(0.299, 0.587, 0.114));
-    float city = smoothstep(0.42, 0.78, cityLuma) * uNight * uCityGlow;
-    totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * city * 0.5;
+    float city = smoothstep(0.62, 0.92, cityLuma) * uNight * uCityGlow;
+    totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * city * 0.45;
   #endif
 `;
 

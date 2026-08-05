@@ -9,7 +9,7 @@ import { stylizeElevation } from '../stylize';
 
 export interface DecodeRequest {
   type: 'decode';
-  key: string;
+  key: number;
   buffer: ArrayBuffer;
   encoding: ElevationEncoding;
   /** Ground metres per elevation sample, for hillshade slope. */
@@ -19,7 +19,7 @@ export interface DecodeRequest {
 
 export interface DecodeResponse {
   type: 'decoded';
-  key: string;
+  key: number;
   heights: Float32Array;
   size: number;
   min: number;
@@ -29,7 +29,7 @@ export interface DecodeResponse {
 
 export interface DecodeError {
   type: 'error';
-  key: string;
+  key: number;
   message: string;
 }
 

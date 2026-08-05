@@ -64,9 +64,9 @@ const SKY_FRAG = /* glsl */ `
 
     float cosAngle = dot(dir, normalize(uSunDir));
     // Broad glow around the sun, plus a small disc.
-    float glow = pow(max(cosAngle, 0.0), 8.0) * 0.35 + pow(max(cosAngle, 0.0), 160.0) * 0.9;
+    float glow = pow(max(cosAngle, 0.0), 26.0) * 0.16 + pow(max(cosAngle, 0.0), 900.0) * 0.7;
     float disc = smoothstep(uSunSize, uSunSize + 0.0012, cosAngle);
-    sky += uSunColor * (glow * uHaze + disc * 3.0);
+    sky += uSunColor * (glow * uHaze + disc * 1.6);
 
     gl_FragColor = vec4(sky, 1.0);
   }
@@ -200,7 +200,7 @@ export class Sky {
         uGround: { value: new Color() },
         uSunDir: { value: this.sunDirection },
         uSunColor: { value: new Color() },
-        uSunSize: { value: 0.9995 },
+        uSunSize: { value: 0.99975 },
         uHaze: { value: 1 },
       },
     });
@@ -214,7 +214,11 @@ export class Sky {
       size: 2.2,
       sizeAttenuation: false,
       color: 0xffffff,
-      transparent: true,
+      // Opaque-list membership is deliberate: transparent objects draw after
+      // everything else, and with depth testing off that would paint stars over
+      // the terrain. In the opaque list the negative renderOrder puts them
+      // right behind the sky and in front of nothing.
+      transparent: false,
       opacity: 0,
       depthWrite: false,
       depthTest: false,

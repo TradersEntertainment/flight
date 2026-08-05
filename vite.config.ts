@@ -25,4 +25,6 @@ export default defineConfig({
   build: { target: 'es2022', sourcemap: true },
   worker: { format: 'es' },
   server: { host: true },
+  // Unit tests are *.test.ts; Playwright owns *.spec.ts under tests/e2e.
+  test: { include: ['tests/**/*.test.ts'] },
 });

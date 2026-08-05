@@ -288,6 +288,9 @@ body {
 }
 
 .place-badge {
+  position: absolute;
+  right: 1.2rem;
+  top: 1.2rem;
   padding: 0.5rem 0.8rem;
   font-size: 0.85rem;
   max-width: 16rem;

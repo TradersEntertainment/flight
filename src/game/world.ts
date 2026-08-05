@@ -94,11 +94,16 @@ export class World {
     this.scene.add(this.ocean.group);
 
     window.addEventListener('resize', this.onResize);
-    this.warmUp(opts.spawn.lon, opts.spawn.lat);
+    this.warmUpAt(opts.spawn.lon, opts.spawn.lat);
   }
 
-  /** Requests the tiles under the spawn point before the first frame. */
-  private warmUp(lon: number, lat: number): void {
+  /**
+   * Requests the whole zoom chain under a point at top priority.
+   *
+   * Used at start-up and after a teleport: without it the terrain would climb
+   * one level at a time and the player would stare at a coarse blur.
+   */
+  warmUpAt(lon: number, lat: number): void {
     for (let z = 5; z <= 15; z++) this.elevation.ensureAt(lon, lat, z, -100 + z);
   }
 
@@ -170,6 +175,8 @@ export class World {
     this.sky.update(dt, this.camera.position);
     this.ocean.update(this.time, this.camera.position);
     this.ocean.setNight(this.sky.nightAmount);
+    // The stylised fallback has no city lights to pick out.
+    this.uniforms.uCityGlow.value = this.textures.usesSatellite ? 1 : 0;
     this.uniforms.uCameraHeight.value = Math.max(
       1,
       this.camera.position.y - this.heightAt(this.camera.position.x, this.camera.position.z),
