@@ -15,7 +15,15 @@ import { DEFAULT_SPAWN, readSpawnFromUrl, writeUrlState, type UrlState } from '.
 import { VehicleManager } from '../vehicles/manager';
 import type { VehicleKind } from '../vehicles/types';
 import { ChaseCamera } from '../camera/chase';
-import { ActionChips, Attribution, Hud, PlaceBadge, RoadLabel, Toasts } from '../ui/hud';
+import {
+  ActionChips,
+  Attribution,
+  Hud,
+  LoadingBadge,
+  PlaceBadge,
+  RoadLabel,
+  Toasts,
+} from '../ui/hud';
 import { Minimap } from '../ui/minimap';
 import { SearchPanel, type SearchResult } from '../ui/search';
 import { HelpPanel, SettingsPanel } from '../ui/menu';
@@ -54,6 +62,7 @@ export class Game {
   private readonly attribution: Attribution;
   private readonly roadLabel: RoadLabel;
   private readonly actions: ActionChips;
+  private readonly loading: LoadingBadge;
   private readonly touch: TouchControls | null;
   private readonly raceHud = document.createElement('div');
   private readonly countdown = document.createElement('div');
@@ -92,6 +101,7 @@ export class Game {
     this.attribution = new Attribution(uiRoot);
     this.roadLabel = new RoadLabel(uiRoot);
     this.actions = new ActionChips(uiRoot);
+    this.loading = new LoadingBadge(uiRoot);
     this.touch = hasTouch() ? new TouchControls(uiRoot, this.input) : null;
 
     this.raceHud.className = 'race-hud panel';
@@ -121,6 +131,19 @@ export class Game {
       airborne: (spawn.altitude ?? 0) > 5,
     });
     this.hud.setVehicle(kind);
+    // The ground under the spawn has not loaded yet, so this first placement
+    // uses sea level. Re-apply it once real elevation arrives — Mecidiyeköy is
+    // 113 m up, and without this the car spends its first seconds underground.
+    this.pendingArrival = {
+      place: {
+        lon: spawn.lon,
+        lat: spawn.lat,
+        name: this.placeName,
+        kind: 'city',
+        vehicle: kind,
+      },
+      deadline: performance.now() + 20_000,
+    };
     this.minimap.setVisible(this.settings.showMinimap);
     this.applyInvertPitch();
     this.attribution.set(this.world.attribution);
@@ -277,6 +300,7 @@ export class Game {
 
   private updateUi(dt: number): void {
     const state = this.vehicles.active.getState();
+    this.loading.set(!this.world.hasDetailAt(state.position.x, state.position.z, 12));
     const reading = this.vehicles.active.getHud();
     this.hud.update(reading);
     this.roadLabel.set(reading.surface);
@@ -321,7 +345,12 @@ export class Game {
         ? 'arazi verisine ulaşılamıyor — bağlantınızı kontrol edin'
         : `arazi yükleniyor — ${stats.drawn} parça, z${stats.maxZoom}`;
     }
-    const ready = stats.maxZoom >= 12 && stats.drawn > 4;
+    // The ground under the player has to be real before the world is revealed.
+    // Terrain reads as sea level until its tile arrives, so letting the player
+    // in early drops them inside the hill they are standing on.
+    const position = this.vehicles.active.getState().position;
+    const ready =
+      stats.maxZoom >= 12 && stats.drawn > 4 && this.world.hasDetailAt(position.x, position.z, 12);
     if (!ready && this.bootElapsed < 35) return;
 
     this.booted = true;

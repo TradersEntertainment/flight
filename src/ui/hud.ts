@@ -189,6 +189,31 @@ export class PlaceBadge {
 }
 
 /**
+ * Says so while the ground under the player is still coming in.
+ *
+ * Terrain streams, so there is a window where the world is a coarse blur or
+ * missing entirely. Without a word on screen that reads as a broken game
+ * rather than a loading one.
+ */
+export class LoadingBadge {
+  private readonly root = document.createElement('div');
+  private shown = false;
+
+  constructor(parent: HTMLElement) {
+    this.root.className = 'loading-badge panel';
+    this.root.textContent = 'arazi yükleniyor…';
+    this.root.style.display = 'none';
+    parent.appendChild(this.root);
+  }
+
+  set(loading: boolean): void {
+    if (loading === this.shown) return;
+    this.shown = loading;
+    this.root.style.display = loading ? '' : 'none';
+  }
+}
+
+/**
  * The three things a lost player needs: get back, find somewhere, share here.
  *
  * These are buttons rather than keyboard-only actions because someone who has

@@ -306,6 +306,19 @@ body {
   margin-top: 0.15rem;
 }
 
+/* ---------- loading badge ---------- */
+
+.loading-badge {
+  position: absolute;
+  left: 50%;
+  top: 1.2rem;
+  transform: translateX(-50%);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.78rem;
+  color: var(--dim);
+  letter-spacing: 0.04em;
+}
+
 /* ---------- action chips ---------- */
 
 .action-chips {
