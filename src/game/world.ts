@@ -189,6 +189,21 @@ export class World {
     return this.heightAt(x, z) <= 0;
   }
 
+  /**
+   * What is still arriving at a position, or null when everything is there.
+   *
+   * Terrain first: without it there is no ground. Roads and buildings are named
+   * separately because they take far longer over a city, and a player looking
+   * at an empty Istanbul deserves to know it is coming rather than missing.
+   */
+  loadingLabel(x: number, z: number): string | null {
+    if (!this.hasDetailAt(x, z, 11)) return 'arazi yükleniyor…';
+    if (!quality(this.settings).vectors) return null;
+    const pending = this.roads.stats.pending + this.buildings.stats.pending;
+    if (pending > 0) return 'yollar ve binalar yükleniyor…';
+    return null;
+  }
+
   /** True once terrain near a world position is loaded at usable detail. */
   hasDetailAt(x: number, z: number, minZoom = 12): boolean {
     const ll = this.anchor.lonLatFromWorld(x, z);

@@ -24,7 +24,7 @@ import { fetchBuildings, type Building } from './overpass';
 /** Cells are smaller than the road cells: a city block of buildings is a lot of geometry. */
 const CELL_DEGREES = 0.01;
 const CELL_RADIUS = 1;
-const MAX_CELLS = 18;
+const MAX_CELLS = 30;
 /** Footprints smaller than this are sheds and bin stores; skip them. */
 const MIN_AREA = 12;
 /** Buildings per cell, so one dense district cannot stall a frame. */

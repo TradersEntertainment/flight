@@ -300,7 +300,7 @@ export class Game {
 
   private updateUi(dt: number): void {
     const state = this.vehicles.active.getState();
-    this.loading.set(!this.world.hasDetailAt(state.position.x, state.position.z, 12));
+    this.loading.set(this.world.loadingLabel(state.position.x, state.position.z));
     const reading = this.vehicles.active.getHud();
     this.hud.update(reading);
     this.roadLabel.set(reading.surface);

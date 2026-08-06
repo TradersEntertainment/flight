@@ -29,7 +29,11 @@ export const QUALITY: Record<QualityName, Quality> = {
     bloom: false,
     waterDetail: 64,
     maxPixelRatio: 1,
-    vectors: false,
+    // Roads and buildings stay on even here. They are most of what makes a
+    // place recognisable, they cost one merged mesh per cell, and silently
+    // switching them off left players looking at an empty city with no way to
+    // tell that a setting had done it.
+    vectors: true,
   },
   medium: {
     meshSegments: 48,

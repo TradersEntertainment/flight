@@ -197,19 +197,23 @@ export class PlaceBadge {
  */
 export class LoadingBadge {
   private readonly root = document.createElement('div');
-  private shown = false;
+  private current: string | null = null;
 
   constructor(parent: HTMLElement) {
     this.root.className = 'loading-badge panel';
-    this.root.textContent = 'arazi yükleniyor…';
     this.root.style.display = 'none';
     parent.appendChild(this.root);
   }
 
-  set(loading: boolean): void {
-    if (loading === this.shown) return;
-    this.shown = loading;
-    this.root.style.display = loading ? '' : 'none';
+  set(label: string | null): void {
+    if (label === this.current) return;
+    this.current = label;
+    if (!label) {
+      this.root.style.display = 'none';
+      return;
+    }
+    this.root.textContent = label;
+    this.root.style.display = '';
   }
 }
 

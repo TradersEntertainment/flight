@@ -42,7 +42,15 @@ class RequestGate {
   }
 }
 
-const GATE = new RequestGate(1);
+/**
+ * Two requests in flight, not one.
+ *
+ * Overpass is volunteer-run and deserves restraint, but a single slot means a
+ * player moving at any speed outruns their own data: cells are requested,
+ * queued behind a slow one, and evicted before they arrive. Two is still far
+ * below what the usage policy asks for.
+ */
+const GATE = new RequestGate(2);
 
 export interface CellContext {
   bbox: Bbox;
@@ -115,12 +123,17 @@ export class CellStreamer<T, D = unknown> {
     const size = this.options.cellDegrees;
     const cellX = Math.floor(lon / size);
     const cellY = Math.floor(lat / size);
+    // Nearest first: what is under the player matters more than what is at the
+    // edge of the ring, and the request queue is short.
     const radius = this.options.radius;
+    const wanted: Array<{ x: number; y: number; distance: number }> = [];
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
-        this.ensureCell(cellX + dx, cellY + dy, anchor);
+        wanted.push({ x: cellX + dx, y: cellY + dy, distance: dx * dx + dy * dy });
       }
     }
+    wanted.sort((a, b) => a.distance - b.distance);
+    for (const cell of wanted) this.ensureCell(cell.x, cell.y, anchor);
     this.evict();
   }
 
