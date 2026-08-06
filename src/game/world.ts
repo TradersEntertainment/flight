@@ -93,7 +93,9 @@ export class World {
     });
     this.scene.add(this.terrain.group);
 
-    this.sky = new Sky(this.scene, this.uniforms, 'night');
+    // Daylight by default: night is the better-looking mode, but opening the
+    // game into darkness means a new player sees nothing at all.
+    this.sky = new Sky(this.scene, this.uniforms, 'day');
     this.scene.add(this.sky.group);
 
     this.ocean = new Ocean({ extent: 6000, segments: q.waterDetail });

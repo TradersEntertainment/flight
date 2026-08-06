@@ -189,6 +189,39 @@ export class PlaceBadge {
 }
 
 /**
+ * The three things a lost player needs: get back, find somewhere, share here.
+ *
+ * These are buttons rather than keyboard-only actions because someone who has
+ * just opened the game does not yet know the keys.
+ */
+export class ActionChips {
+  private readonly root = document.createElement('div');
+  onHome: (() => void) | null = null;
+  onSearch: (() => void) | null = null;
+  onShare: (() => void) | null = null;
+
+  constructor(parent: HTMLElement) {
+    this.root.className = 'action-chips';
+    this.root.append(
+      this.chip('⌂', 'Başlangıca dön', () => this.onHome?.()),
+      this.chip('⌕', 'Yer ara', () => this.onSearch?.(), 'T'),
+      this.chip('⧉', 'Bağlantıyı kopyala', () => this.onShare?.()),
+    );
+    parent.appendChild(this.root);
+  }
+
+  private chip(icon: string, label: string, action: () => void, key?: string): HTMLElement {
+    const button = document.createElement('button');
+    button.className = 'chip';
+    button.type = 'button';
+    button.title = label;
+    button.innerHTML = `<span aria-hidden="true">${icon}</span>${label}${key ? `<kbd>${key}</kbd>` : ''}`;
+    button.addEventListener('click', action);
+    return button;
+  }
+}
+
+/**
  * The name of the road being driven.
  *
  * Sits by the minimap and only appears when there is a road under the wheels —

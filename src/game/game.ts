@@ -15,7 +15,7 @@ import { DEFAULT_SPAWN, readSpawnFromUrl, writeUrlState, type UrlState } from '.
 import { VehicleManager } from '../vehicles/manager';
 import type { VehicleKind } from '../vehicles/types';
 import { ChaseCamera } from '../camera/chase';
-import { Attribution, Hud, PlaceBadge, RoadLabel, Toasts } from '../ui/hud';
+import { ActionChips, Attribution, Hud, PlaceBadge, RoadLabel, Toasts } from '../ui/hud';
 import { Minimap } from '../ui/minimap';
 import { SearchPanel, type SearchResult } from '../ui/search';
 import { HelpPanel, SettingsPanel } from '../ui/menu';
@@ -32,8 +32,6 @@ const TIME_LABEL: Record<TimeOfDay, string> = {
 };
 import { PlaneVehicle } from '../vehicles/plane';
 import { CarVehicle } from '../vehicles/car';
-
-const URL_UPDATE_INTERVAL = 5;
 
 export class Game {
   readonly world: World;
@@ -55,12 +53,13 @@ export class Game {
   private readonly badge: PlaceBadge;
   private readonly attribution: Attribution;
   private readonly roadLabel: RoadLabel;
+  private readonly actions: ActionChips;
   private readonly touch: TouchControls | null;
   private readonly raceHud = document.createElement('div');
   private readonly countdown = document.createElement('div');
   private placeName: string;
-  private urlTimer = 0;
   private booted = false;
+  private bootElapsed = 0;
   /**
    * A teleport that is still waiting for terrain.
    *
@@ -92,6 +91,7 @@ export class Game {
     this.help = new HelpPanel(uiRoot);
     this.attribution = new Attribution(uiRoot);
     this.roadLabel = new RoadLabel(uiRoot);
+    this.actions = new ActionChips(uiRoot);
     this.touch = hasTouch() ? new TouchControls(uiRoot, this.input) : null;
 
     this.raceHud.className = 'race-hud panel';
@@ -142,6 +142,12 @@ export class Game {
     };
 
     this.hud.onSelectVehicle = (kind) => this.switchVehicle(kind);
+    this.actions.onHome = () => this.goHome();
+    this.actions.onShare = () => void this.shareLocation();
+    this.actions.onSearch = () => {
+      this.search.open();
+      this.input.captured = true;
+    };
     this.input.on('vehiclePlane', () => this.switchVehicle('plane'));
     this.input.on('vehicleCar', () => this.switchVehicle('car'));
     this.input.on('vehicleBoat', () => this.switchVehicle('boat'));
@@ -229,6 +235,46 @@ export class Game {
     this.engine.onRender((_alpha, frameDt) => this.world.render(frameDt));
   }
 
+  /**
+   * Puts a link to right here on the clipboard.
+   *
+   * The address bar used to be rewritten as the player moved, which made
+   * sharing free but meant reopening the game dropped you wherever you last
+   * wandered off to — usually somewhere unrecognisable, in the dark. Sharing is
+   * now something you ask for.
+   */
+  private async shareLocation(): Promise<void> {
+    const state = this.vehicles.active.getState();
+    const ll = this.world.lonLatOf(state.position);
+    writeUrlState({
+      lon: ll.lon,
+      lat: ll.lat,
+      name: this.placeName,
+      vehicle: this.vehicles.kind,
+      heading: (state.heading * 180) / Math.PI,
+      altitude: state.position.y - this.world.heightAt(state.position.x, state.position.z),
+      time: this.world.sky.timeOfDay,
+    });
+    try {
+      await navigator.clipboard.writeText(location.href);
+      this.toasts.show('Bağlantı kopyalandı — bu noktada açılır.', 3500);
+    } catch {
+      // Clipboard permission denied: the address bar now holds the link anyway.
+      this.toasts.show('Bağlantı adres çubuğunda — kopyalayıp paylaşabilirsiniz.', 4500);
+    }
+  }
+
+  /** Back to where the game starts. */
+  private goHome(): void {
+    this.teleportTo({
+      lon: DEFAULT_SPAWN.lon,
+      lat: DEFAULT_SPAWN.lat,
+      name: DEFAULT_SPAWN.name ?? 'Başlangıç',
+      kind: 'city',
+      vehicle: 'car',
+    });
+  }
+
   private updateUi(dt: number): void {
     const state = this.vehicles.active.getState();
     const reading = this.vehicles.active.getHud();
@@ -255,34 +301,39 @@ export class Game {
     const ll = this.world.lonLatOf(state.position);
     this.badge.set(this.placeName, ll.lon, ll.lat);
 
-    this.urlTimer += dt;
-    if (this.urlTimer > URL_UPDATE_INTERVAL) {
-      this.urlTimer = 0;
-      writeUrlState({
-        lon: ll.lon,
-        lat: ll.lat,
-        name: this.placeName,
-        vehicle: this.vehicles.kind,
-        heading: (state.heading * 180) / Math.PI,
-        altitude: state.position.y - this.world.heightAt(state.position.x, state.position.z),
-        time: this.world.sky.timeOfDay,
-      });
-    }
-
-    if (!this.booted) this.checkBoot();
+    if (!this.booted) this.checkBoot(dt);
   }
 
-  private checkBoot(): void {
+  /**
+   * Hides the loading screen once there is a world to look at.
+   *
+   * With a hard deadline: if the elevation service cannot be reached the player
+   * would otherwise sit in front of "loading" forever. Better to say what is
+   * wrong and let them in — the game runs, it is just flat.
+   */
+  private checkBoot(dt: number): void {
+    this.bootElapsed += dt;
     const stats = this.world.terrain.stats;
     const status = document.querySelector('.boot-status');
-    if (status) status.textContent = `arazi yükleniyor — ${stats.drawn} parça, z${stats.maxZoom}`;
-    if (stats.maxZoom >= 12 && stats.drawn > 4) {
-      this.booted = true;
-      const boot = document.getElementById('boot');
-      boot?.classList.add('hidden');
-      setTimeout(() => boot?.remove(), 700);
-      this.toasts.show('H tuşu kontroller · T tuşu dünyada ara · 1/2/3 araç değiştir', 7000);
+    const stalled = this.bootElapsed > 20 && stats.maxZoom < 10;
+    if (status) {
+      status.textContent = stalled
+        ? 'arazi verisine ulaşılamıyor — bağlantınızı kontrol edin'
+        : `arazi yükleniyor — ${stats.drawn} parça, z${stats.maxZoom}`;
     }
+    const ready = stats.maxZoom >= 12 && stats.drawn > 4;
+    if (!ready && this.bootElapsed < 35) return;
+
+    this.booted = true;
+    const boot = document.getElementById('boot');
+    boot?.classList.add('hidden');
+    setTimeout(() => boot?.remove(), 700);
+    this.toasts.show(
+      ready
+        ? 'H tuşu kontroller · T tuşu dünyada ara · 1/2/3 araç değiştir'
+        : 'Arazi verisi gelmedi; oyun düz bir dünyada çalışıyor.',
+      7000,
+    );
   }
 
   private switchVehicle(kind: VehicleKind): void {

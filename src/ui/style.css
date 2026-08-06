@@ -306,6 +306,28 @@ body {
   margin-top: 0.15rem;
 }
 
+/* ---------- action chips ---------- */
+
+.action-chips {
+  position: absolute;
+  right: 1.2rem;
+  top: 5.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+@media (max-width: 640px) {
+  .action-chips {
+    top: 4.6rem;
+  }
+  .action-chips .chip {
+    font-size: 0.7rem;
+    padding: 0.32rem 0.5rem;
+  }
+}
+
 /* ---------- road label ---------- */
 
 .road-label {
